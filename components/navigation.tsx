@@ -171,7 +171,7 @@ export function Navbar() {
                 <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-500 dark:text-emerald-300 flex items-center justify-center font-black text-xs uppercase">
                   {user.email ? user.email[0] : "U"}
                 </div>
-                <span className="max-w-[120px] truncate">{user.name || user.email || "Account"}</span>
+                <span className="max-w-[120px] truncate">{user.firstName || user.email || "Account"}</span>
                 <ChevronDownIcon className={cn("w-3.5 h-3.5 transition-transform duration-200", userDropdownOpen && "rotate-180")} />
               </button>
 
@@ -192,7 +192,7 @@ export function Navbar() {
                     >
                       <div className="px-3 py-2 border-b border-slate-100 dark:border-white/5 mb-1">
                         <p className="text-xs font-medium text-slate-400 dark:text-purple-300/60 uppercase tracking-wider">Signed in as</p>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.email || user.name}</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.email || user.firstName}</p>
                         <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 capitalize mt-0.5">{user.role || "User"}</p>
                       </div>
 
@@ -330,7 +330,7 @@ export function Navbar() {
                   <>
                     <div className="px-1 mb-2">
                       <p className="text-xs font-semibold text-slate-400 dark:text-purple-300/60 uppercase">Signed in as</p>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.email || user.name}</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.email || user.firstName}</p>
                     </div>
                     <button
                       onClick={() => {
