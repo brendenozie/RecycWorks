@@ -29,11 +29,13 @@ import { SystemConfig } from "./components/systemConfig";
 import { RouteManager } from "./components/checkpoints";
 import AdminPaymentDashboard from "./components/adminPaymentDashboard";
 import { FeedstockCategories } from "./components/FeedstockCategories";
+import { SourcingRequestsViewer } from "./components/SourcingRequestsViewer";
 
 const navItems = [
   { id: "overview", label: "Dashboard", icon: Squares2X2Icon },
   { id: "users", label: "User Access", icon: UserGroupIcon },
   { id: "feedstock", label: "Feedstock Cat", icon: Squares2X2Icon },
+  { id: "sourcing", label: "Sourcing Requests", icon: UserGroupIcon },
   { id: "inventory", label: "Material Ledger", icon: ArchiveBoxIcon },
   { id: "hubs", label: "Regional Hubs", icon: MapIcon },
   { id: "checkpoints", label: "Checkpoints", icon: IdentificationIcon },
@@ -221,6 +223,7 @@ export default function AdminDashboard() {
               {activeTab === "overview" && <CommandCenter />}
               {activeTab === "users" && <UserAccess />}
               {activeTab === "feedstock" && <FeedstockCategories />}
+              {activeTab === "sourcing" && <SourcingRequestsViewer />}
               {activeTab === "inventory" && <Inventory />}
               {activeTab === "hubs" && <Hubs />}
               {activeTab === "checkpoints" && <RouteManager />}

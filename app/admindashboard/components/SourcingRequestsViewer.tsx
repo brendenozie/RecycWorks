@@ -76,9 +76,9 @@ interface SourcingRequestsViewerProps {
   apiEndpoint?: string;
 }
 
-export function SourcingRequestsViewer({ 
-  apiEndpoint = "/api/admin/sourcing-requests" 
-}: SourcingRequestsViewerProps) {
+const defaultApiEndpoint = "/api/admin/sourcing-requests";
+
+export function SourcingRequestsViewer() {
   // --- STATE ---
   const [requests, setRequests] = useState<SourcingRequest[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
@@ -130,7 +130,7 @@ export function SourcingRequestsViewer({
       // Retrieve bearer token from local storage or cookie
       const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
 
-      const response = await fetch(`${apiEndpoint}?${params.toString()}`, {
+      const response = await fetch(`${defaultApiEndpoint}?${params.toString()}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -156,7 +156,7 @@ export function SourcingRequestsViewer({
     } finally {
       setLoading(false);
     }
-  }, [apiEndpoint, currentPage, debouncedSearch, statusFilter]);
+  }, [defaultApiEndpoint, currentPage, debouncedSearch, statusFilter]);
 
   // Fetch data on dependency updates
   useEffect(() => {
