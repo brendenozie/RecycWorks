@@ -478,7 +478,7 @@ ${landmark ? `Pickup Address/GPS: ${landmark}` : ""}`;
                       Request Recyc Works Fleet Pickup
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Our ISUZU heavy fleet collects bulk tonnage directly from your yard site.
+                      Our heavy fleet collects bulk tonnage directly from your yard site.
                     </p>
                   </button>
 
