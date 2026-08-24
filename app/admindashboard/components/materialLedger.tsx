@@ -114,13 +114,14 @@ export function Inventory() {
 
   useEffect(() => {
     if (editingItem) {
-      setFormName(editingItem.name);
-      setFormGrade(editingItem.grade);
-      setFormWeight(editingItem.weight.replace(/[^\d.-]/g, ""));
-      setFormSupplier(editingItem.supplier);
-      setFormSupplierId(editingItem.supplierId);
-      setFormDriver(editingItem.driver);
-      setFormDriverId(editingItem.driverId);
+      const rawWeight = String(editingItem.weight ?? "");
+      setFormName(editingItem.name || "");
+      setFormGrade(editingItem.grade || "");
+      setFormWeight(rawWeight.replace(/[^\d.-]/g, ""));
+      setFormSupplier(editingItem.supplier || "");
+      setFormSupplierId(editingItem.supplierId || "");
+      setFormDriver(editingItem.driver || "");
+      setFormDriverId(editingItem.driverId || "");
       setFormStatus(editingItem.status || 'pending');
     } else {
       clearFormFields();
@@ -129,7 +130,9 @@ export function Inventory() {
 
   // Rely strictly on the database status definition for visual accuracy
   const getStatus = (item: Material) => {
-    switch (item.status) {
+    const statusKey = item?.status || 'pending';
+    
+    switch (statusKey) {
       case 'in-transit':
         return { label: "In Transit", color: "text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10", icon: TruckIcon };
       case 'needs-review':
@@ -138,15 +141,13 @@ export function Inventory() {
         return { label: "In Stock", color: "text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10", icon: CheckCircleIcon };
       case 'transit-requested':
         return { label: "Transit Requested", color: "text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/20 bg-purple-50 dark:bg-purple-500/10", icon: ClockIcon };
-      case 'transit-requested':
-        return { label: "Transit Requested", color: "text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/20 bg-purple-50 dark:bg-purple-500/10", icon: ClockIcon };
-       case 'dispatched':
+      case 'dispatched':
         return { label: "Dispatched", color: "text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10", icon: TruckIcon };
       case 'delivered':
         return { label: "Delivered", color: "text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10", icon: CheckCircleIcon };
       case 'archived':
         return { label: "Archived", color: "text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-500/20 bg-gray-50 dark:bg-gray-500/10", icon: ArchiveBoxIcon };
-        default:
+      default:
         return { label: "Pending", color: "text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-500/20 bg-slate-50 dark:bg-slate-500/10", icon: ArchiveBoxIcon };
     }
   };
@@ -249,7 +250,13 @@ export function Inventory() {
   }, [items, statusFilter]);
 
   const totalVolume = useMemo(() => {
-    return items.reduce((sum, item) => sum + parseFloat(item.weight.replace(/[^\d.-]/g, "") || "0"), 0).toFixed(1);
+    return items
+      .reduce((sum, item) => {
+        const rawWeight = String(item?.weight ?? "0");
+        const cleanWeight = parseFloat(rawWeight.replace(/[^\d.-]/g, "")) || 0;
+        return sum + cleanWeight;
+      }, 0)
+      .toFixed(1);
   }, [items]);
 
   const activeDriversCount = useMemo(() => {
