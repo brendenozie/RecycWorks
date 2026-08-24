@@ -21,7 +21,13 @@ import {
   FunnelIcon
 } from "@heroicons/react/24/outline";
 
-// --- TYPES (Mapped directly to API Schema) ---
+// --- TYPES (Updated to reflect actual API schema) ---
+export type HubLocation = {
+  country?: string;
+  city?: string;
+  neighborhood?: string;
+};
+
 export type SourcingRequest = {
   _id: string;
   requestNo: string;
@@ -46,7 +52,7 @@ export type SourcingRequest = {
   hub?: {
     id?: string;
     name?: string;
-    location?: string;
+    location?: HubLocation | string; // Handled as object or string
   };
   driver?: {
     id: string;
@@ -100,11 +106,11 @@ export function SourcingRequestsViewer() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<SourcingRequest | null>(null);
 
-  // Debounce search query to prevent unnecessary API hits
+  // Debounce search query
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-      setCurrentPage(1); // Reset to first page on search change
+      setCurrentPage(1);
     }, 400);
     return () => clearTimeout(handler);
   }, [searchQuery]);
@@ -115,7 +121,6 @@ export function SourcingRequestsViewer() {
     setError(null);
 
     try {
-      // Build search params
       const params = new URLSearchParams();
       params.set("page", currentPage.toString());
       params.set("limit", "20");
@@ -127,7 +132,6 @@ export function SourcingRequestsViewer() {
         params.set("status", statusFilter);
       }
 
-      // Retrieve bearer token from local storage or cookie
       const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
 
       const response = await fetch(`${defaultApiEndpoint}?${params.toString()}`, {
@@ -156,9 +160,8 @@ export function SourcingRequestsViewer() {
     } finally {
       setLoading(false);
     }
-  }, [defaultApiEndpoint, currentPage, debouncedSearch, statusFilter]);
+  }, [currentPage, debouncedSearch, statusFilter]);
 
-  // Fetch data on dependency updates
   useEffect(() => {
     fetchSourcingRequests();
   }, [fetchSourcingRequests]);
@@ -175,6 +178,15 @@ export function SourcingRequestsViewer() {
   const formatWeight = (kg: number) => {
     if (!kg) return "0 kg";
     return kg >= 1000 ? `${(kg / 1000).toFixed(1)} tonnes` : `${kg.toLocaleString()} kg`;
+  };
+
+  // Safe Location Formatter (Prevents object-as-child rendering errors)
+  const formatLocation = (location?: HubLocation | string) => {
+    if (!location) return null;
+    if (typeof location === "string") return location;
+    
+    const parts = [location.neighborhood, location.city, location.country].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : null;
   };
 
   const getStatusBadge = (status: string) => {
@@ -267,7 +279,6 @@ export function SourcingRequestsViewer() {
 
       {/* FILTER & SEARCH CONTROL BAR */}
       <div className="flex flex-col sm:flex-row items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs">
-        {/* Search */}
         <div className="relative w-full sm:flex-1">
           <MagnifyingGlassIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
@@ -279,7 +290,6 @@ export function SourcingRequestsViewer() {
           />
         </div>
 
-        {/* Status Filter */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <FunnelIcon className="w-4 h-4 text-slate-400 hidden sm:block shrink-0" />
           <select
@@ -359,7 +369,6 @@ export function SourcingRequestsViewer() {
                 className="group flex flex-col justify-between p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xs hover:shadow-md hover:border-emerald-500/50 dark:hover:border-emerald-500/40 transition-all cursor-pointer"
               >
                 <div>
-                  {/* Top Bar: Request No & Status */}
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <span className="font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/50 dark:border-slate-700">
                       {req.requestNo || req._id.substring(0, 8)}
@@ -370,7 +379,6 @@ export function SourcingRequestsViewer() {
                     </span>
                   </div>
 
-                  {/* Title & Material */}
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                     {req.materialName}
                   </h3>
@@ -380,7 +388,6 @@ export function SourcingRequestsViewer() {
                     </span>
                   )}
 
-                  {/* Supplier & Location details */}
                   <div className="space-y-1.5 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs text-slate-600 dark:text-slate-400">
                     <div className="flex items-center gap-1.5 truncate">
                       <UserIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -393,7 +400,6 @@ export function SourcingRequestsViewer() {
                   </div>
                 </div>
 
-                {/* Bottom Stats Footer */}
                 <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <span className="text-[10px] text-slate-400 uppercase tracking-tight block">Weight</span>
@@ -448,7 +454,6 @@ export function SourcingRequestsViewer() {
       <AnimatePresence>
         {selectedRequest && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -457,7 +462,6 @@ export function SourcingRequestsViewer() {
               className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs z-50"
             />
 
-            {/* Drawer */}
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
@@ -465,7 +469,6 @@ export function SourcingRequestsViewer() {
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
               className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white dark:bg-slate-900 z-50 p-6 border-l border-slate-200 dark:border-slate-800 shadow-2xl overflow-y-auto flex flex-col"
             >
-              {/* Drawer Header */}
               <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
@@ -488,10 +491,7 @@ export function SourcingRequestsViewer() {
                 </button>
               </div>
 
-              {/* Drawer Content */}
               <div className="py-6 space-y-6 flex-1 text-xs">
-                
-                {/* Commercial Valuation Grid */}
                 <div>
                   <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
                     Commercial Overview
@@ -528,13 +528,11 @@ export function SourcingRequestsViewer() {
                   </div>
                 </div>
 
-                {/* Entity Details */}
                 <div className="space-y-3">
                   <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                     Logistics Entities
                   </h4>
                   
-                  {/* Supplier */}
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
                     <UserIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
                     <div>
@@ -550,20 +548,19 @@ export function SourcingRequestsViewer() {
                     </div>
                   </div>
 
-                  {/* Hub */}
+                  {/* Safely handle location string rendering */}
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
                     <BuildingOfficeIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
                     <div>
                       <p className="font-semibold text-slate-800 dark:text-slate-200">
                         {selectedRequest.hub?.name || "Unassigned Destination Hub"}
                       </p>
-                      {selectedRequest.hub?.location && (
-                        <p className="text-slate-500">{selectedRequest.hub.location}</p>
+                      {formatLocation(selectedRequest.hub?.location) && (
+                        <p className="text-slate-500">{formatLocation(selectedRequest.hub?.location)}</p>
                       )}
                     </div>
                   </div>
 
-                  {/* Driver */}
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
                     <TruckIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
                     <div>
@@ -577,7 +574,6 @@ export function SourcingRequestsViewer() {
                   </div>
                 </div>
 
-                {/* Pickup Address */}
                 <div>
                   <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     Pickup Location
@@ -587,7 +583,6 @@ export function SourcingRequestsViewer() {
                   </div>
                 </div>
 
-                {/* Operational Notes */}
                 {selectedRequest.notes && (
                   <div>
                     <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -600,7 +595,6 @@ export function SourcingRequestsViewer() {
                 )}
               </div>
 
-              {/* Drawer Footer */}
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-slate-400 text-[10px] flex justify-between">
                 <span>Created: {new Date(selectedRequest.createdAt).toLocaleDateString()}</span>
                 <span>ID: {selectedRequest._id}</span>
