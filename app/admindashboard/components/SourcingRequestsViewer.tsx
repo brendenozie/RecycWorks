@@ -18,10 +18,11 @@ import {
   ChevronRightIcon,
   ArrowPathIcon,
   DocumentTextIcon,
-  FunnelIcon
+  FunnelIcon,
+  CheckIcon
 } from "@heroicons/react/24/outline";
 
-// --- TYPES (Updated to reflect actual API schema) ---
+// --- TYPES ---
 export type HubLocation = {
   country?: string;
   city?: string;
@@ -52,7 +53,7 @@ export type SourcingRequest = {
   hub?: {
     id?: string;
     name?: string;
-    location?: HubLocation | string; // Handled as object or string
+    location?: HubLocation | string;
   };
   driver?: {
     id: string;
@@ -76,11 +77,6 @@ type ApiResponse = {
   summary: StatusSummary;
   error?: string;
 };
-
-interface SourcingRequestsViewerProps {
-  /** Optional custom API endpoint override. Defaults to /api/admin/sourcing-requests */
-  apiEndpoint?: string;
-}
 
 const defaultApiEndpoint = "/api/admin/sourcing-requests";
 
@@ -106,6 +102,10 @@ export function SourcingRequestsViewer() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<SourcingRequest | null>(null);
 
+  // Action States
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
   // Debounce search query
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -114,6 +114,14 @@ export function SourcingRequestsViewer() {
     }, 400);
     return () => clearTimeout(handler);
   }, [searchQuery]);
+
+  // Clear action feedback after 4 seconds
+  useEffect(() => {
+    if (actionFeedback) {
+      const timer = setTimeout(() => setActionFeedback(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [actionFeedback]);
 
   // --- API FETCH FUNCTION ---
   const fetchSourcingRequests = useCallback(async () => {
@@ -166,6 +174,45 @@ export function SourcingRequestsViewer() {
     fetchSourcingRequests();
   }, [fetchSourcingRequests]);
 
+  // --- ACTIONS ---
+  const handleAcceptRequest = async (requestId: string) => {
+    setAcceptingId(requestId);
+    setActionFeedback(null);
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+      const res = await fetch(`/api/admin/sourcing-requests/${requestId}/accept`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to accept request");
+
+      setActionFeedback({
+        type: "success",
+        message: "Sourcing request accepted and queued to inventory."
+      });
+
+      // Update selected request in drawer if open
+      if (selectedRequest && selectedRequest._id === requestId) {
+        setSelectedRequest((prev) => prev ? { ...prev, status: "accepted" } : null);
+      }
+
+      fetchSourcingRequests();
+    } catch (err: any) {
+      setActionFeedback({
+        type: "error",
+        message: err.message || "An error occurred while accepting the request."
+      });
+    } finally {
+      setAcceptingId(null);
+    }
+  };
+
   // --- HELPERS ---
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -180,7 +227,6 @@ export function SourcingRequestsViewer() {
     return kg >= 1000 ? `${(kg / 1000).toFixed(1)} tonnes` : `${kg.toLocaleString()} kg`;
   };
 
-  // Safe Location Formatter (Prevents object-as-child rendering errors)
   const formatLocation = (location?: HubLocation | string) => {
     if (!location) return null;
     if (typeof location === "string") return location;
@@ -197,6 +243,12 @@ export function SourcingRequestsViewer() {
           label: "Pending",
           className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
           icon: ClockIcon
+        };
+      case "accepted":
+        return {
+          label: "Accepted",
+          className: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+          icon: CheckIcon
         };
       case "assigned":
       case "in_transit":
@@ -245,12 +297,38 @@ export function SourcingRequestsViewer() {
           <button
             onClick={() => fetchSourcingRequests()}
             disabled={loading}
-            className="self-start sm:self-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+            className="self-start sm:self-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <ArrowPathIcon className={`w-4 h-4 ${loading ? "animate-spin text-emerald-500" : ""}`} />
             Refresh Stream
           </button>
         </div>
+
+        {/* FEEDBACK TOAST */}
+        <AnimatePresence>
+          {actionFeedback && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className={`p-3.5 rounded-xl border flex items-center gap-3 text-xs font-medium ${
+                actionFeedback.type === "success"
+                  ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                  : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+              }`}
+            >
+              {actionFeedback.type === "success" ? (
+                <CheckCircleIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              ) : (
+                <ExclamationTriangleIcon className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+              )}
+              <span className="flex-1">{actionFeedback.message}</span>
+              <button onClick={() => setActionFeedback(null)} className="p-1 hover:opacity-75">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* METRICS SUMMARY CARDS */}
         {Object.keys(summary).length > 0 && (
@@ -298,10 +376,11 @@ export function SourcingRequestsViewer() {
               setStatusFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full sm:w-44 py-2 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-hidden focus:border-emerald-500"
+            className="w-full sm:w-44 py-2 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-hidden focus:border-emerald-500 cursor-pointer"
           >
             <option value="ALL">All Statuses</option>
             <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
             <option value="assigned">Assigned</option>
             <option value="in_transit">In Transit</option>
             <option value="completed">Completed</option>
@@ -322,7 +401,7 @@ export function SourcingRequestsViewer() {
           </div>
           <button 
             onClick={() => fetchSourcingRequests()}
-            className="text-xs font-semibold text-rose-700 dark:text-rose-300 hover:underline"
+            className="text-xs font-semibold text-rose-700 dark:text-rose-300 hover:underline cursor-pointer"
           >
             Try Again
           </button>
@@ -361,6 +440,8 @@ export function SourcingRequestsViewer() {
           {requests.map((req) => {
             const statusConfig = getStatusBadge(req.status);
             const StatusIcon = statusConfig.icon;
+            const isPending = req.status.toLowerCase() === "pending" || req.status.toLowerCase() === "open";
+            const isAcceptingThis = acceptingId === req._id;
 
             return (
               <div
@@ -400,19 +481,39 @@ export function SourcingRequestsViewer() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase tracking-tight block">Weight</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      {formatWeight(req.estimatedWeightKg)}
-                    </span>
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                  <div className="grid grid-cols-2 gap-3 flex-1 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-tight block">Weight</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {formatWeight(req.estimatedWeightKg)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-tight block">Est. Value</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(req.totalEstimatedValue)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-400 uppercase tracking-tight block">Est. Value</span>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(req.totalEstimatedValue)}
-                    </span>
-                  </div>
+
+                  {isPending && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAcceptRequest(req._id);
+                      }}
+                      disabled={isAcceptingThis}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
+                    >
+                      {isAcceptingThis ? (
+                        <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <CheckIcon className="w-3.5 h-3.5" />
+                      )}
+                      Accept
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -432,7 +533,7 @@ export function SourcingRequestsViewer() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1 || loading}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <ChevronLeftIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" />
             </button>
@@ -442,7 +543,7 @@ export function SourcingRequestsViewer() {
             <button
               onClick={() => setCurrentPage((prev) => Math.min(pagination.totalPages, prev + 1))}
               disabled={currentPage === pagination.totalPages || loading}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <ChevronRightIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" />
             </button>
@@ -467,137 +568,161 @@ export function SourcingRequestsViewer() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white dark:bg-slate-900 z-50 p-6 border-l border-slate-200 dark:border-slate-800 shadow-2xl overflow-y-auto flex flex-col"
+              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white dark:bg-slate-900 z-50 p-6 border-l border-slate-200 dark:border-slate-800 shadow-2xl overflow-y-auto flex flex-col justify-between"
             >
-              <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-mono text-xs font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                      {selectedRequest.requestNo || selectedRequest._id}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusBadge(selectedRequest.status).className}`}>
-                      {selectedRequest.status}
-                    </span>
+              <div>
+                <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="font-mono text-xs font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                        {selectedRequest.requestNo || selectedRequest._id}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusBadge(selectedRequest.status).className}`}>
+                        {selectedRequest.status}
+                      </span>
+                    </div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                      {selectedRequest.materialName}
+                    </h2>
                   </div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                    {selectedRequest.materialName}
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setSelectedRequest(null)}
-                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
-                >
-                  <XMarkIcon className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="py-6 space-y-6 flex-1 text-xs">
-                <div>
-                  <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
-                    Commercial Overview
-                  </h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
-                      <ScaleIcon className="w-4 h-4 text-slate-400 mb-1" />
-                      <p className="text-[10px] text-slate-400">Est. Weight</p>
-                      <p className="font-semibold text-slate-900 dark:text-white text-sm">
-                        {formatWeight(selectedRequest.estimatedWeightKg)}
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
-                      <ScaleIcon className="w-4 h-4 text-emerald-500 mb-1" />
-                      <p className="text-[10px] text-slate-400">Actual Weight</p>
-                      <p className="font-semibold text-slate-900 dark:text-white text-sm">
-                        {selectedRequest.actualWeightKg ? formatWeight(selectedRequest.actualWeightKg) : "Pending Scale"}
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
-                      <BanknotesIcon className="w-4 h-4 text-slate-400 mb-1" />
-                      <p className="text-[10px] text-slate-400">Unit Rate</p>
-                      <p className="font-semibold text-slate-900 dark:text-white text-sm">
-                        {formatCurrency(selectedRequest.pricePerKg)} / kg
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
-                      <BanknotesIcon className="w-4 h-4 text-emerald-500 mb-1" />
-                      <p className="text-[10px] text-slate-400">Total Est. Value</p>
-                      <p className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
-                        {formatCurrency(selectedRequest.totalEstimatedValue)}
-                      </p>
-                    </div>
-                  </div>
+                  <button
+                    onClick={() => setSelectedRequest(null)}
+                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <XMarkIcon className="w-5 h-5" />
+                  </button>
                 </div>
 
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Logistics Entities
-                  </h4>
-                  
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
-                    <UserIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">
-                        {selectedRequest.supplier?.name || "Unknown Supplier"}
-                      </p>
-                      {selectedRequest.supplier?.email && (
-                        <p className="text-slate-500">{selectedRequest.supplier.email}</p>
-                      )}
-                      {selectedRequest.supplier?.phone && (
-                        <p className="text-slate-500">{selectedRequest.supplier.phone}</p>
-                      )}
+                <div className="py-6 space-y-6 text-xs">
+                  <div>
+                    <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
+                      Commercial Overview
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                        <ScaleIcon className="w-4 h-4 text-slate-400 mb-1" />
+                        <p className="text-[10px] text-slate-400">Est. Weight</p>
+                        <p className="font-semibold text-slate-900 dark:text-white text-sm">
+                          {formatWeight(selectedRequest.estimatedWeightKg)}
+                        </p>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                        <ScaleIcon className="w-4 h-4 text-emerald-500 mb-1" />
+                        <p className="text-[10px] text-slate-400">Actual Weight</p>
+                        <p className="font-semibold text-slate-900 dark:text-white text-sm">
+                          {selectedRequest.actualWeightKg ? formatWeight(selectedRequest.actualWeightKg) : "Pending Scale"}
+                        </p>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                        <BanknotesIcon className="w-4 h-4 text-slate-400 mb-1" />
+                        <p className="text-[10px] text-slate-400">Unit Rate</p>
+                        <p className="font-semibold text-slate-900 dark:text-white text-sm">
+                          {formatCurrency(selectedRequest.pricePerKg)} / kg
+                        </p>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
+                        <BanknotesIcon className="w-4 h-4 text-emerald-500 mb-1" />
+                        <p className="text-[10px] text-slate-400">Total Est. Value</p>
+                        <p className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
+                          {formatCurrency(selectedRequest.totalEstimatedValue)}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Safely handle location string rendering */}
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
-                    <BuildingOfficeIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">
-                        {selectedRequest.hub?.name || "Unassigned Destination Hub"}
-                      </p>
-                      {formatLocation(selectedRequest.hub?.location) && (
-                        <p className="text-slate-500">{formatLocation(selectedRequest.hub?.location)}</p>
-                      )}
+                  <div className="space-y-3">
+                    <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Logistics Entities
+                    </h4>
+                    
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
+                      <UserIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedRequest.supplier?.name || "Unknown Supplier"}
+                        </p>
+                        {selectedRequest.supplier?.email && (
+                          <p className="text-slate-500">{selectedRequest.supplier.email}</p>
+                        )}
+                        {selectedRequest.supplier?.phone && (
+                          <p className="text-slate-500">{selectedRequest.supplier.phone}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
+                      <BuildingOfficeIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedRequest.hub?.name || "Unassigned Destination Hub"}
+                        </p>
+                        {formatLocation(selectedRequest.hub?.location) && (
+                          <p className="text-slate-500">{formatLocation(selectedRequest.hub?.location)}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
+                      <TruckIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedRequest.driver?.name || "No Driver Assigned"}
+                        </p>
+                        {selectedRequest.driver?.phone && (
+                          <p className="text-slate-500">{selectedRequest.driver.phone}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
-                    <TruckIcon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">
-                        {selectedRequest.driver?.name || "No Driver Assigned"}
-                      </p>
-                      {selectedRequest.driver?.phone && (
-                        <p className="text-slate-500">{selectedRequest.driver.phone}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Pickup Location
-                  </h4>
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                    {selectedRequest.pickupAddress || "No pickup address provided"}
-                  </div>
-                </div>
-
-                {selectedRequest.notes && (
                   <div>
                     <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Dispatch Notes
+                      Pickup Location
                     </h4>
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 italic">
-                      &quot;{selectedRequest.notes}&quot;
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                      {selectedRequest.pickupAddress || "No pickup address provided"}
                     </div>
                   </div>
-                )}
+
+                  {selectedRequest.notes && (
+                    <div>
+                      <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Dispatch Notes
+                      </h4>
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 italic">
+                        &quot;{selectedRequest.notes}&quot;
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-slate-400 text-[10px] flex justify-between">
-                <span>Created: {new Date(selectedRequest.createdAt).toLocaleDateString()}</span>
-                <span>ID: {selectedRequest._id}</span>
+              {/* DRAWER FOOTER & ACTIONS */}
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                {(selectedRequest.status.toLowerCase() === "pending" || selectedRequest.status.toLowerCase() === "open") && (
+                  <button
+                    onClick={() => handleAcceptRequest(selectedRequest._id)}
+                    disabled={acceptingId === selectedRequest._id}
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {acceptingId === selectedRequest._id ? (
+                      <>
+                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                        Accepting & Queuing to Inventory...
+                      </>
+                    ) : (
+                      <>
+                        <CheckIcon className="w-4 h-4" />
+                        Accept Request & Add to Inventory
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <div className="text-slate-400 text-[10px] flex justify-between">
+                  <span>Created: {new Date(selectedRequest.createdAt).toLocaleDateString()}</span>
+                  <span>ID: {selectedRequest._id}</span>
+                </div>
               </div>
             </motion.div>
           </>
