@@ -84,7 +84,7 @@ export async function POST(
           {
             $set: {
               status: "accepted",
-              acceptedBy: adminUser?.userId || adminUser?.id || "unknown",
+              acceptedBy: adminUser?.userId || "unknown",
               acceptedAt: new Date(),
               updatedAt: new Date(),
             },
@@ -149,7 +149,7 @@ export async function POST(
       {
         message: "Sourcing request accepted and added to inventory as pending",
         sourcingRequestId: id,
-        inventoryId: inventoryId ? inventoryId.toString() : null,
+        inventoryId: inventoryId ? inventoryId : null,
         status: "accepted",
       },
       { status: 200 },
