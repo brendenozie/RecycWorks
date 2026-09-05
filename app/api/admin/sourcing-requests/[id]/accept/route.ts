@@ -70,8 +70,9 @@ export async function POST(
       );
     }
 
-    // Access the MongoClient instance from db via type assertion
-    const client = (db as any).client;
+    // Access the MongoClient instance from mongodb module
+    const clientPromise = (await import("@/lib/mongodb")).default;
+    const client = await clientPromise;
     const session = client.startSession();
 
     let inventoryId: ObjectId | null = null;

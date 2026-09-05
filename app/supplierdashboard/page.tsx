@@ -16,8 +16,7 @@ import { RequestPickup } from "./components/requestPickup";
 import { MyBatches } from "./components/batches";
 import { FinancePortal } from "./components/finances";
 
-// Accept userToken to securely propagate identity across all dashboard modules
-export default function SupplierDashboard({ userToken }: { userToken: string }) {
+export default function SupplierDashboard({ userToken }: { userToken?: string }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 

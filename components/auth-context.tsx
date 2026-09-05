@@ -90,20 +90,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /**
    * Enhanced Login with Role-Based Redirection
    */
-  const login = (token: string, role: UserRole) => {
+  const login = (token: string, role: string) => {
     localStorage.setItem('token', token);
     
-    // Logic for role-based landing pages
-    let destination = '/dashboard'; 
-    
-    if (role === 'hub-manager') destination = '/hubdashboard';//hub/management
-    if (role === 'driver') destination = '/driverdashboard';//mobile/transit
-    if (role === 'admin') destination = '/admindashboard';//admin/stats
-    if (role === 'operations') destination = '/operationsdashboard';//ops/verification
-    if (role === 'supplier') destination = '/supplierdashboard';//coop/ledger
-    // if (role === 'fleet-operator') destination = '/fleetdashboard';//fleet/management
-    if (role === 'field-officer') destination = '/fieldOfficerdashboard';//field/verification
-    if (role === 'hub-manager') destination = '/hubdashboard';//hub/management
+    // Canonical role-based operational destinations
+    let destination = '/admindashboard';
+    const normRole = (role || '').toLowerCase().replace('-', '_');
+
+    if (normRole === 'driver') {
+      destination = '/driverdashboard';
+    } else if (normRole === 'field_officer' || normRole === 'field-officer') {
+      destination = '/fieldOfficerdashboard';
+    } else if (normRole === 'supplier') {
+      destination = '/supplierdashboard';
+    } else if (normRole === 'operations') {
+      destination = '/operationsdashboard';
+    } else if (normRole === 'accounts') {
+      destination = '/admindashboard?tab=payouts';
+    } else {
+      destination = '/admindashboard';
+    }
 
     window.location.href = destination;
   };

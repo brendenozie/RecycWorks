@@ -1,0 +1,166 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  email            String   @unique
+  password         String?
+  firstName        String
+  lastName         String
+  phoneNumber      String?
+  role             String   @default("supplier") // super_admin, admin, field_officer, driver, supplier, operations, accounts
+  isAdmin          Boolean  @default(false)
+  hubId            String?  @db.ObjectId
+  supplierCode     String?  @unique // e.g., RW-1001
+  businessName     String?
+  county           String?
+  subCounty        String?
+  gpsCoordinates   String?
+  supplierType     String?  @default("Aggregator") // Aggregator, SME, Industrial, Community
+  status           String   @default("active") // active, suspended, pending_verification
+  initialPassword  String?  // Clear initial credential for onboarding handoff
+  fieldOfficerId   String?  @db.ObjectId // Attributed Field Officer who onboarded this user
+  emailVerified    Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Hub {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  code            String?  @unique // e.g., NBO-01
+  county          String
+  subCounty       String?
+  physicalAddress String?
+  location        Json?    // { country, city, neighborhood, phase }
+  coords          Json?    // { x, y } or { lat, lng }
+  supplierIds     String[] @default([])
+  load            Float    @default(0)
+  capacityTonnes  Float    @default(100.0)
+  status          String   @default("Optimal")
+  contactPerson   String?
+  contactPhone    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("hubs")
+}
+
+model FeedstockCategory {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String   @unique
+  group        String   // "Polymers & Synthetics", "Non-Ferrous Metals"
+  grades       String[]
+  totalWeight  String?  @default("0 kg")
+  activeOrders Int      @default(0)
+  status       String   @default("Stable")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("feedstockCategories")
+}
+
+model Load {
+  id                     String   @id @default(auto()) @map("_id") @db.ObjectId
+  loadNumber             String?  @unique // e.g. RWL-2026-001
+  supplierId             String   @db.ObjectId
+  supplierName           String
+  supplierCode           String?
+  fieldOfficerId         String?  @db.ObjectId
+  fieldOfficerName       String?
+  driverId               String?  @db.ObjectId
+  driverName             String?
+  vehiclePlate           String?
+  hubId                  String?  @db.ObjectId
+  hubName                String?
+  material               String
+  grade                  String
+  quantity               Float
+  unit                   String   @default("KG") // KG or TONNES
+  normalizedWeightKg     Float
+  unitPricePerKg         Float
+  grossValueKes          Float
+  adjustmentKes          Float    @default(0)
+  netValueKes            Float
+  status                 String   @default("captured") // draft, captured, assigned, in-transit, delivered, verified, valued, payment_pending, paid, canceled
+  pickupLocation         Json?    // { county, subCounty, landmark, gps }
+  photos                 String[] @default([])
+  proofOfCollectionPhoto String?
+  actualWeightKg         Float?
+  paymentStatus          String   @default("pending") // pending, approved, paid
+  paymentReference       String?
+  notes                  String?
+  timestamp              DateTime @default(now())
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@map("inventory")
+}
+
+model PickupRequest {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  requestNo         String?  @unique
+  supplierId        String?  @db.ObjectId
+  supplierName      String
+  supplierPhone     String
+  supplierEmail     String?
+  businessName      String?
+  materialName      String
+  grade             String
+  materialGroup     String?
+  estimatedWeightKg Float
+  pickupAddress     String
+  county            String
+  subCounty         String?
+  hubId             String?  @db.ObjectId
+  hubName           String?
+  status            String   @default("pending") // pending, accepted, assigned, completed, rejected
+  photos            String[] @default([])
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("sourcing_requests")
+}
+
+model Payment {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  paymentNo        String?  @unique // PAY-2026-001
+  recipientId      String   @db.ObjectId
+  recipientName    String
+  recipientType    String   // "supplier", "driver", "field_officer"
+  loadId           String?  @db.ObjectId
+  batchId          String?
+  amount           Float
+  method           String   @default("M-PESA") // M-PESA, BANK, CASH
+  paymentReference String   // e.g. QA12XY9876
+  status           String   @default("completed") // pending, approved, completed, failed
+  processedBy      String?
+  notes            String?
+  paidAt           DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@map("payments")
+}
+
+model AuditLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String?
+  userEmail  String?
+  userRole   String?
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  timestamp  DateTime @default(now())
+
+  @@map("audit_logs")
+}

@@ -49,20 +49,20 @@ const INFRASTRUCTURE_CARDS: InfrastructureCard[] = [
     iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white",
     glowColor: "rgba(59, 130, 246, 0.15)",
     activeColor: "border-blue-500/50 shadow-blue-500/10",
-    title: "Dedicated Truck Fleet",
-    subtitle: "Nationwide Heavy Collection Capacity",
-    description: "Equipped for multi-ton, high-density bulk site pickups across Kenya. Dedicated to clearing large aggregator stockpiles with minimal lead time.",
+    title: "ISUZU FRR Dedicated Fleet",
+    subtitle: "10-Ton Heavy Bulk Collection Haulers",
+    description: "Equipped with dedicated ISUZU FRR heavy haulers structured for multi-ton, high-density bulk site pickups across Kenya. Dedicated to clearing high-volume aggregator stockpiles with minimal lead time.",
     icon: Truck,
     highlights: [
-      "Multi-ton bulk capacity per trip",
-      "Countywide dispatch & GPS coordination",
-      "Scheduled aggregator site clearance"
+      "ISUZU FRR 10-Ton dedicated bulk haulers",
+      "Countywide dispatch & real-time GPS tracking",
+      "Scheduled high-volume aggregator site clearance"
     ],
-    metric: { label: "Coverage", value: "Kenya-Wide" },
+    metric: { label: "Fleet Capacity", value: "ISUZU FRR" },
     metricBg: "bg-blue-50 text-blue-700 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/50",
     liveStats: [
-      { label: "Active Haulers", val: "24/7" },
-      { label: "Dispatch Time", val: "< 2 Hours" }
+      { label: "Dedicated Haulers", val: "ISUZU FRR" },
+      { label: "Dispatch Response", val: "< 2 Hours" }
     ]
   },
   {
@@ -70,45 +70,45 @@ const INFRASTRUCTURE_CARDS: InfrastructureCard[] = [
     badge: "Central Receiving Yard",
     badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
     iconBg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white",
-    glowColor: "rgba(16, 185, 129, 0.15)",
+    glowColor: "rgba(168, 85, 247, 0.15)",
     activeColor: "border-emerald-500/50 shadow-emerald-500/10",
-    title: "Digital Weighbridge",
-    subtitle: "Calibrated Offloading & Verification",
-    description: "Fully operational central receiving yard structured for rapid offloading, accurate digital weight verification, and transparent material sorting.",
+    title: "Central Yard & Weighbridge",
+    subtitle: "Certified Digital Weighing & Sorting",
+    description: "Fully operational central receiving yard structured for rapid offloading, certified digital weighbridge verification, and transparent multi-grade material sorting.",
     icon: Scale,
     highlights: [
-      "Calibrated digital weighbridge & heavy scales",
-      "Zero-wait turnaround for drop-offs",
-      "Transparent sorting & grading protocol"
+      "Certified digital weighbridge & calibrated scales",
+      "Zero-wait turnaround for supplier offloading",
+      "Transparent multi-grade sorting protocol"
     ],
     metric: { label: "Turnaround", value: "< 15 Mins" },
     metricBg: "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/50",
     liveStats: [
-      { label: "Daily Scale Ops", val: "150+ Tons" },
-      { label: "Precision", val: "99.9%" }
+      { label: "Daily Yard Ops", val: "150+ Tons" },
+      { label: "Scale Precision", val: "99.9%" }
     ]
   },
   {
     id: "processing",
-    badge: "Expansion Line",
+    badge: "Processing & Value Addition",
     badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
     iconBg: "bg-purple-500/10 text-purple-600 dark:text-purple-400 group-hover:bg-purple-600 group-hover:text-white",
     glowColor: "rgba(168, 85, 247, 0.15)",
     activeColor: "border-purple-500/50 shadow-purple-500/10",
-    title: "Shredding & Pelletization",
-    subtitle: "High-Grade Value Addition",
-    description: "Industrial shredder and pelletizer lines transitioning operations into high-grade regrind and pellet manufacturing—guaranteeing long-term high-volume offtake.",
+    title: "Industrial Shredder & Pelletizer",
+    subtitle: "Uniform Regrind & Certified Pellets",
+    description: "Heavy-duty industrial shredder and twin-screw pelletizer lines transitioning bulk scrap into high-grade regrind and export-grade pellets—guaranteeing steady industrial offtake.",
     icon: Cog,
     highlights: [
-      "Industrial rigid plastic shredding",
-      "Continuous pellet manufacturing lines",
-      "Guaranteed long-term material demand"
+      "Industrial high-torque shredders & granulators",
+      "High-throughput twin-screw pelletizer lines",
+      "Certified uniform regrind & extruder-ready pellets"
     ],
-    metric: { label: "Output", value: "Regrind & Pellets" },
+    metric: { label: "Value Output", value: "Pellets & Regrind" },
     metricBg: "bg-purple-50 text-purple-700 border-purple-200/80 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800/50",
     liveStats: [
-      { label: "Extruder Tech", val: "Dual-Stage" },
-      { label: "Quality Grade", val: "Industrial A+" }
+      { label: "Processing Lines", val: "Shredder + Pelletizer" },
+      { label: "Offtake Quality", val: "Industrial Grade" }
     ]
   }
 ];

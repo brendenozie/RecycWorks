@@ -2,296 +2,631 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { 
-  CheckBadgeIcon, 
-  ExclamationTriangleIcon, 
   CurrencyDollarIcon,
   MagnifyingGlassIcon,
   BanknotesIcon,
   ArrowPathIcon,
-  SunIcon,
-  MoonIcon
+  CheckCircleIcon,
+  UserGroupIcon,
+  TruckIcon,
+  ArchiveBoxIcon,
+  XMarkIcon,
+  CreditCardIcon,
+  DocumentCheckIcon,
 } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-interface PayoutBatch {
-  id: string;
-  supplierId: string;
-  supplierName: string;
-  verifiedWeight: number;
-  discrepancy?: number;
-}
-
-const mockPendingPayouts: PayoutBatch[] = [
-  { id: "BCH-2026-08A", supplierId: "SUP-ALP", supplierName: "Alpha Aggregators", verifiedWeight: 12400, discrepancy: 150 },
-  { id: "BCH-2026-09C", supplierId: "SUP-CST", supplierName: "Coastal Plastics Ltd", verifiedWeight: 8200 },
-  { id: "BCH-2026-11X", supplierId: "SUP-ECO", supplierName: "Eco-Metal Nairobi", verifiedWeight: 4800, discrepancy: 20 },
-];
-
 export default function AdminPaymentDashboard() {
-  const [pendingPayouts, setPendingPayouts] = useState<PayoutBatch[]>([]);
+  const [activeSubTab, setActiveSubTab] = useState<"suppliers" | "officers" | "drivers" | "history">("suppliers");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [processingId, setProcessingId] = useState<string | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  useEffect(() => {
-    // Fetch batches with status "Verification Completed" but not "Paid"
-    fetch("/api/admin/batches?status=Verified")
-      .then(res => {
-        if (!res.ok) throw new Error("Fallback to demo records");
-        return res.json();
-      })
-      .then(data => {
-        setPendingPayouts(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        // Safe interactive layout demo fallback data 
-        setPendingPayouts(mockPendingPayouts);
-        setLoading(false);
-      });
-  }, []);
+  // Data from backend
+  const [pendingLoads, setPendingLoads] = useState<any[]>([]);
+  const [officerWork, setOfficerWork] = useState<any[]>([]);
+  const [driverWork, setDriverWork] = useState<any[]>([]);
+  const [recentPayouts, setRecentPayouts] = useState<any[]>([]);
 
-  const handleApprove = async (payout: PayoutBatch) => {
-    setProcessingId(payout.id);
+  // Payment Execution Modal State
+  const [selectedItemForPayment, setSelectedItemForPayment] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState("M-PESA");
+  const [paymentRef, setPaymentRef] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  const fetchPayoutData = async () => {
+    setLoading(true);
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch("/api/admin/payouts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          batchId: payout.id,
-          supplierId: payout.supplierId,
-          amount: payout.verifiedWeight * 25, // KES 25 per kg
-        }),
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.ok) {
-        setPendingPayouts(prev => prev.filter((p) => p.id !== payout.id));
-      } else {
-        throw new Error("API simulation default");
-      }
+      if (!res.ok) throw new Error("Failed to sync payouts matrix");
+
+      const data = await res.json();
+      setPendingLoads(data.pendingLoads || []);
+      setOfficerWork(data.officerWork || []);
+      setDriverWork(data.driverWork || []);
+      setRecentPayouts(data.recentPayouts || []);
     } catch (err) {
-      // Local state animation fallback on local development testing environments
-      setPendingPayouts(prev => prev.filter((p) => p.id !== payout.id));
+      console.error(err);
+      toast.error("Failed to load payout records from central ledger.");
     } finally {
-      setProcessingId(null);
+      setLoading(false);
     }
   };
 
-  const calculatedMetrics = useMemo(() => {
-    const totalAmount = pendingPayouts.reduce((sum, item) => sum + (item.verifiedWeight * 25), 0);
-    const totalWeight = pendingPayouts.reduce((sum, item) => sum + item.verifiedWeight, 0);
-    return { totalAmount, totalWeight };
-  }, [pendingPayouts]);
+  useEffect(() => {
+    fetchPayoutData();
+  }, []);
 
-  const filteredPayouts = useMemo(() => {
-    return pendingPayouts.filter(p => 
-      p.supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [pendingPayouts, searchQuery]);
+  const openPaymentModal = (item: any, type: "supplier" | "officer" | "driver") => {
+    let amt = 0;
+    if (type === "supplier") {
+      amt = item.netValueKes || item.grossValueKes || (parseFloat(item.quantity) * (item.unitPricePerKg || 35)) || 0;
+    } else if (type === "officer") {
+      amt = item.calculatedStipendKes || 0;
+    } else if (type === "driver") {
+      amt = item.calculatedAllowanceKes || 0;
+    }
+
+    setSelectedItemForPayment({ ...item, paymentType: type });
+    setPaymentAmount(Math.round(amt));
+    setPaymentRef("");
+    setPaymentNotes("");
+  };
+
+  const handleExecutePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentRef.trim()) {
+      toast.error("Please enter M-Pesa transaction reference or receipt number");
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/payouts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          loadId: selectedItemForPayment.paymentType === "supplier" ? selectedItemForPayment._id : null,
+          supplierId: selectedItemForPayment.supplierId || selectedItemForPayment.id,
+          recipientName: selectedItemForPayment.supplier || selectedItemForPayment.name,
+          amount: paymentAmount,
+          paymentMethod,
+          paymentReference: paymentRef.toUpperCase().trim(),
+          notes: paymentNotes,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Payment recording failed");
+
+      toast.success(`Payment recorded! Ref: ${paymentRef.toUpperCase()}`);
+      setSelectedItemForPayment(null);
+      fetchPayoutData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit payment");
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // Metrics
+  const totalPendingSupplierAmount = useMemo(() => {
+    return pendingLoads.reduce((sum, l) => sum + (l.netValueKes || l.grossValueKes || 0), 0);
+  }, [pendingLoads]);
+
+  const totalOfficerStipendAmount = useMemo(() => {
+    return officerWork.reduce((sum, o) => sum + (o.calculatedStipendKes || 0), 0);
+  }, [officerWork]);
+
+  const totalDriverAllowanceAmount = useMemo(() => {
+    return driverWork.reduce((sum, d) => sum + (d.calculatedAllowanceKes || 0), 0);
+  }, [driverWork]);
 
   return (
-    <div className={cn(
-      "min-h-screen transition-colors duration-300 antialiased font-sans p-4 sm:p-6 md:p-10 lg:p-12",
-      isDarkMode ? "bg-slate-950 text-slate-100" : "bg-slate-50/60 text-slate-900"
-    )}>
-      {/* Dynamic Aesthetic Backdrop Spotlights */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-amber-500/[0.03] dark:bg-amber-500/[0.01] blur-3xl rounded-full" />
-        <div className="absolute top-0 right-10 w-80 h-80 bg-emerald-500/[0.03] dark:bg-emerald-500/[0.01] blur-2xl rounded-full" />
-      </div>
-
-      <div className="max-w-7xl mx-auto space-y-8 relative z-10">
-        
-        {/* --- MAIN INTERFACE HEADER --- */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-xs">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              Treasury Control Center
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Pending Payout Approvals</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Review weight-verified receipts and release secure funds to supplier networks.</p>
+    <div className="space-y-6">
+      {/* Top Metrics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md">
+          <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
+            <ArchiveBoxIcon className="w-4 h-4 text-emerald-400" /> Pending Supplier Payables
+          </span>
+          <div className="text-2xl font-black text-emerald-400">
+            KES {totalPendingSupplierAmount.toLocaleString()}
           </div>
-
-          <div className="flex items-center gap-3 self-end md:self-auto">
-            <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-800 rounded-xl transition-colors text-slate-500 border border-slate-200 dark:border-slate-700">
-              {isDarkMode ? <SunIcon className="w-5 h-5 text-amber-400" /> : <MoonIcon className="w-5 h-5" />}
-            </button>
-            <div className="flex items-center gap-3 px-5 py-3 bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
-              <BanknotesIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-              <div>
-                <span className="text-[10px] text-slate-400 dark:text-slate-400 block font-bold uppercase tracking-wider leading-none">Total Outstanding Balance</span>
-                <span className="text-sm font-extrabold text-amber-700 dark:text-amber-400">KES {calculatedMetrics.totalAmount.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* --- CONTROLS SECTION: SEARCH & FILTERS --- */}
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-          <div className="relative w-full sm:max-w-md">
-            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search by supplier name or batch code..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 p-2.5 pl-10 rounded-xl text-xs outline-none focus:border-emerald-500 transition-colors"
-            />
-          </div>
-          <div className="text-xs font-medium text-slate-400 self-end sm:self-auto shrink-0">
-            Showing {filteredPayouts.length} accounts awaiting release
-          </div>
+          <p className="text-xs text-slate-400">{pendingLoads.length} consignments awaiting payout</p>
         </div>
 
-        {/* --- MAIN ACCOUNTS PAYABLE DIRECTORY --- */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
-          
-          {loading ? (
-            <div className="p-20 text-center flex flex-col items-center justify-center gap-3 text-slate-400">
-              <ArrowPathIcon className="w-6 h-6 animate-spin text-emerald-500" />
-              <p className="text-xs font-bold uppercase tracking-wider">Syncing Ledger Transmissions...</p>
-            </div>
-          ) : (
-            <>
-              {/* Mobile View Layout Cards */}
-              <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredPayouts.map((payout) => (
-                  <div key={payout.id} className="p-5 space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="h-9 w-9 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-extrabold text-xs flex items-center justify-center shrink-0">
-                        {payout.supplierId.replace("SUP-", "").substring(0, 2)}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">{payout.supplierName}</h4>
-                        <span className="text-[11px] font-mono text-slate-400 block mt-0.5">ID: {payout.id}</span>
-                      </div>
-                    </div>
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md">
+          <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
+            <UserGroupIcon className="w-4 h-4 text-blue-400" /> Field Officer Stipends
+          </span>
+          <div className="text-2xl font-black text-blue-400">
+            KES {totalOfficerStipendAmount.toLocaleString()}
+          </div>
+          <p className="text-xs text-slate-400">{officerWork.length} active field officers</p>
+        </div>
 
-                    <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/30 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wide">Net Cargo</span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{payout.verifiedWeight.toLocaleString()} kg</span>
-                        {payout.discrepancy && (
-                          <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-bold mt-0.5">
-                            <ExclamationTriangleIcon className="w-2.5 h-2.5" /> -{payout.discrepancy}kg Var
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md">
+          <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
+            <TruckIcon className="w-4 h-4 text-purple-400" /> Driver Trip Allowances
+          </span>
+          <div className="text-2xl font-black text-purple-400">
+            KES {totalDriverAllowanceAmount.toLocaleString()}
+          </div>
+          <p className="text-xs text-slate-400">{driverWork.length} transport drivers</p>
+        </div>
+      </div>
+
+      {/* Navigation Sub-Tabs */}
+      <div className="flex justify-between items-center flex-wrap gap-3 pb-2 border-b border-slate-800">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveSubTab("suppliers")}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+              activeSubTab === "suppliers"
+                ? "bg-emerald-500 text-slate-950 font-black shadow-md shadow-emerald-500/20"
+                : "bg-slate-800/40 text-slate-400 hover:text-white"
+            )}
+          >
+            Supplier Payables ({pendingLoads.length})
+          </button>
+          <button
+            onClick={() => setActiveSubTab("officers")}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+              activeSubTab === "officers"
+                ? "bg-blue-600 text-white font-black shadow-md shadow-blue-600/20"
+                : "bg-slate-800/40 text-slate-400 hover:text-white"
+            )}
+          >
+            Field Officer Stipends ({officerWork.length})
+          </button>
+          <button
+            onClick={() => setActiveSubTab("drivers")}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+              activeSubTab === "drivers"
+                ? "bg-purple-600 text-white font-black shadow-md shadow-purple-600/20"
+                : "bg-slate-800/40 text-slate-400 hover:text-white"
+            )}
+          >
+            Driver Allowances ({driverWork.length})
+          </button>
+          <button
+            onClick={() => setActiveSubTab("history")}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+              activeSubTab === "history"
+                ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
+                : "bg-slate-800/40 text-slate-400 hover:text-white"
+            )}
+          >
+            Completed Dispatches ({recentPayouts.length})
+          </button>
+        </div>
+
+        <button
+          onClick={fetchPayoutData}
+          className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white text-xs flex items-center gap-1.5 transition-colors"
+        >
+          <ArrowPathIcon className={cn("w-4 h-4", loading && "animate-spin")} />
+          Sync Ledger
+        </button>
+      </div>
+
+      {/* SUB-TAB 1: SUPPLIER PAYABLES */}
+      {activeSubTab === "suppliers" && (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+              Consignments Awaiting Supplier Payment
+            </h3>
+            <span className="text-xs text-slate-400">
+              Auto-calculated using Benchmark Rate Engine
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="p-3.5">Load No.</th>
+                  <th className="p-3.5">Supplier</th>
+                  <th className="p-3.5">Material & Grade</th>
+                  <th className="p-3.5">Verified Weight</th>
+                  <th className="p-3.5">Rate / KG</th>
+                  <th className="p-3.5">Net Payable</th>
+                  <th className="p-3.5">Status</th>
+                  <th className="p-3.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-slate-300 font-medium">
+                {pendingLoads.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-slate-500">
+                      No consignments currently pending payment.
+                    </td>
+                  </tr>
+                ) : (
+                  pendingLoads.map((load) => {
+                    const gross = load.grossValueKes || load.netValueKes || 0;
+                    return (
+                      <tr key={load._id} className="hover:bg-slate-800/20 transition-colors">
+                        <td className="p-3.5 font-mono text-emerald-400 font-bold">
+                          {load.loadNumber || load._id.slice(-6)}
+                        </td>
+                        <td className="p-3.5 font-bold text-white">
+                          {load.supplier || "Supplier"}
+                          {load.hubName && (
+                            <span className="block text-[10px] text-slate-500 font-normal">
+                              {load.hubName}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3.5">
+                          {load.material || load.name}
+                          <span className="block text-[10px] text-slate-500">
+                            {load.grade}
                           </span>
-                        )}
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wide">Calculated Payout</span>
-                        <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">KES {(payout.verifiedWeight * 25).toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    <button
-                      disabled={processingId === payout.id}
-                      onClick={() => handleApprove(payout)}
-                      className={cn(
-                        "w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-2 shadow-xs",
-                        processingId === payout.id ? "bg-slate-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99]"
-                      )}
-                    >
-                      {processingId === payout.id ? (
-                        <>
-                          <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" /> Authorizing...
-                        </>
-                      ) : (
-                        "Approve & Release Funds"
-                      )}
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Desktop Spreadsheet Layout */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
-                      <th className="p-4 pl-6">Supplier Details</th>
-                      <th className="p-4">Verified Net Weight</th>
-                      <th className="p-4">Compensation Value</th>
-                      <th className="p-4 text-right pr-6">System Dispatch Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
-                    {filteredPayouts.map((payout) => (
-                      <tr key={payout.id} className="hover:bg-slate-50/40 dark:hover:bg-white/[0.01] transition-colors group">
-                        <td className="p-4 pl-6">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold flex items-center justify-center border border-slate-200 dark:border-slate-700">
-                              {payout.supplierId.replace("SUP-", "").substring(0, 2)}
-                            </div>
-                            <div>
-                              <p className="font-bold text-sm text-slate-900 dark:text-white">{payout.supplierName}</p>
-                              <p className="text-[11px] text-slate-400 font-mono tracking-tight">Batch Receipt Ref: {payout.id}</p>
-                            </div>
-                          </div>
                         </td>
-                        <td className="p-4">
-                          <div>
-                            <p className="font-bold text-sm text-slate-900 dark:text-white">{payout.verifiedWeight.toLocaleString()} kg</p>
-                            {payout.discrepancy ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-0.5 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                                <ExclamationTriangleIcon className="w-3 h-3" /> Variant deviation of -{payout.discrepancy}kg detected
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                                <CheckBadgeIcon className="w-3 h-3" /> Fully Checked
-                              </span>
-                            )}
-                          </div>
+                        <td className="p-3.5 font-bold text-white">
+                          {load.weight || `${load.quantity} KG`}
                         </td>
-                        <td className="p-4">
-                          <div>
-                            <p className="text-base font-black text-emerald-600 dark:text-emerald-400">KES {(payout.verifiedWeight * 25).toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-400 font-medium">Calculated fixed rate at KES 25 / kg</p>
-                          </div>
+                        <td className="p-3.5 text-slate-400">
+                          KES {load.unitPricePerKg || 35}
                         </td>
-                        <td className="p-4 text-right pr-6">
-                          <button 
-                            disabled={processingId === payout.id}
-                            onClick={() => handleApprove(payout)}
-                            className={cn(
-                              "inline-flex items-center justify-center min-w-[150px] px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider text-white transition-all shadow-xs",
-                              processingId === payout.id 
-                                ? "bg-slate-400 dark:bg-slate-700 cursor-not-allowed" 
-                                : "bg-emerald-600 hover:bg-emerald-500 active:scale-95 shadow-emerald-600/10"
-                            )}
+                        <td className="p-3.5 font-black text-emerald-400 text-sm">
+                          KES {gross.toLocaleString()}
+                        </td>
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            {load.status}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <button
+                            onClick={() => openPaymentModal(load, "supplier")}
+                            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-xs tracking-wider transition-colors"
                           >
-                            {processingId === payout.id ? (
-                              <>
-                                <ArrowPathIcon className="w-3 h-3 animate-spin mr-1.5" /> Transferring...
-                              </>
-                            ) : (
-                              "Release Funds"
-                            )}
+                            Pay M-Pesa
                           </button>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
-          {/* Empty State Handler */}
-          {!loading && filteredPayouts.length === 0 && (
-            <div className="p-16 text-center space-y-2">
-              <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mx-auto">
-                <CheckBadgeIcon className="w-6 h-6 text-emerald-500" />
-              </div>
-              <h3 className="text-sm font-bold pt-2">All Clear</h3>
-              <p className="text-xs text-slate-400 max-w-xs mx-auto">No pending payout items match your filters or await attention. Outstanding balance cleared.</p>
-            </div>
-          )}
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-        
-      </div>
+      )}
+
+      {/* SUB-TAB 2: FIELD OFFICER WORK & STIPENDS */}
+      {activeSubTab === "officers" && (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+              Field Officer Work & Performance Stipends
+            </h3>
+            <span className="text-xs text-slate-400">
+              Formula: 500 KES / Supplier + 350 KES / Captured Consignment
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="p-3.5">Field Officer</th>
+                  <th className="p-3.5">Hub Node</th>
+                  <th className="p-3.5">Suppliers Onboarded</th>
+                  <th className="p-3.5">Consignments Sourced</th>
+                  <th className="p-3.5">Total Tonnage Sourced</th>
+                  <th className="p-3.5">Approved Stipend</th>
+                  <th className="p-3.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-slate-300 font-medium">
+                {officerWork.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                      No field officer records available.
+                    </td>
+                  </tr>
+                ) : (
+                  officerWork.map((officer) => (
+                    <tr key={officer.id} className="hover:bg-slate-800/20 transition-colors">
+                      <td className="p-3.5">
+                        <span className="font-bold text-white block">{officer.name}</span>
+                        <span className="text-[10px] text-slate-500 font-mono">{officer.email}</span>
+                      </td>
+                      <td className="p-3.5 text-slate-400">{officer.hubName}</td>
+                      <td className="p-3.5 font-bold text-emerald-400">{officer.suppliersOnboarded}</td>
+                      <td className="p-3.5 font-bold text-white">{officer.loadsCaptured}</td>
+                      <td className="p-3.5 text-slate-300">{officer.totalTonnage} Tons</td>
+                      <td className="p-3.5 font-black text-blue-400 text-sm">
+                        KES {officer.calculatedStipendKes.toLocaleString()}
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <button
+                          onClick={() => openPaymentModal(officer, "officer")}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-lg text-xs tracking-wider transition-colors"
+                        >
+                          Disburse Stipend
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: DRIVER WORK & TRIP ALLOWANCES */}
+      {activeSubTab === "drivers" && (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+              Driver Completed Trips & Transit Allowances
+            </h3>
+            <span className="text-xs text-slate-400">
+              Formula: 800 KES / Completed Bulk Collection Trip
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="p-3.5">Driver</th>
+                  <th className="p-3.5">Assigned Vehicle</th>
+                  <th className="p-3.5">Completed Trips</th>
+                  <th className="p-3.5">Delivered Payload</th>
+                  <th className="p-3.5">Trip Allowance Due</th>
+                  <th className="p-3.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-slate-300 font-medium">
+                {driverWork.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-500">
+                      No driver logistics logs recorded.
+                    </td>
+                  </tr>
+                ) : (
+                  driverWork.map((driver) => (
+                    <tr key={driver.id} className="hover:bg-slate-800/20 transition-colors">
+                      <td className="p-3.5">
+                        <span className="font-bold text-white block">{driver.name}</span>
+                        <span className="text-[10px] text-slate-500 font-mono">{driver.phone}</span>
+                      </td>
+                      <td className="p-3.5 font-bold text-purple-400">{driver.vehicle}</td>
+                      <td className="p-3.5 font-bold text-white">{driver.tripsCompleted} trips</td>
+                      <td className="p-3.5 text-slate-300">{driver.totalDeliveredTonnage} Tons</td>
+                      <td className="p-3.5 font-black text-purple-400 text-sm">
+                        KES {driver.calculatedAllowanceKes.toLocaleString()}
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <button
+                          onClick={() => openPaymentModal(driver, "driver")}
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-lg text-xs tracking-wider transition-colors"
+                        >
+                          Disburse Allowance
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 4: RECENT DISBURSEMENTS AUDIT */}
+      {activeSubTab === "history" && (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+              Completed Payment Transaction Records
+            </h3>
+            <span className="text-xs text-slate-400">Auditable M-Pesa & Bank Records</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="p-3.5">Date</th>
+                  <th className="p-3.5">Recipient</th>
+                  <th className="p-3.5">Method</th>
+                  <th className="p-3.5">Reference Code</th>
+                  <th className="p-3.5">Amount Disbursed</th>
+                  <th className="p-3.5">Approved By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-slate-300 font-medium">
+                {recentPayouts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-500">
+                      No payout transaction history recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  recentPayouts.map((tx, idx) => (
+                    <tr key={idx} className="hover:bg-slate-800/20 transition-colors">
+                      <td className="p-3.5 text-slate-400">
+                        {new Date(tx.date).toLocaleDateString()}
+                      </td>
+                      <td className="p-3.5 font-bold text-white">
+                        {tx.recipientName || "Supplier / Staff"}
+                      </td>
+                      <td className="p-3.5">
+                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-bold text-[10px]">
+                          {tx.paymentMethod || "M-PESA"}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-mono text-amber-400 font-bold">
+                        {tx.paymentReference}
+                      </td>
+                      <td className="p-3.5 font-black text-white text-sm">
+                        KES {tx.amount?.toLocaleString()}
+                      </td>
+                      <td className="p-3.5 text-slate-400 text-[11px]">
+                        {tx.paidBy || "Finance Officer"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* DISBURSEMENT EXECUTION MODAL */}
+      {selectedItemForPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-black uppercase text-white flex items-center gap-2">
+                <BanknotesIcon className="w-5 h-5 text-emerald-400" />
+                Record Payment Disbursement
+              </h3>
+              <button
+                onClick={() => setSelectedItemForPayment(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Recipient:</span>
+                <span className="font-bold text-white">
+                  {selectedItemForPayment.supplier || selectedItemForPayment.name}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Category:</span>
+                <span className="font-bold text-emerald-400 uppercase">
+                  {selectedItemForPayment.paymentType} Disbursement
+                </span>
+              </div>
+              {selectedItemForPayment.loadNumber && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Consignment:</span>
+                  <span className="font-mono text-white font-bold">
+                    {selectedItemForPayment.loadNumber}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                <span className="text-slate-400 font-bold">Payable Amount:</span>
+                <span className="text-xl font-black text-emerald-400">
+                  KES {paymentAmount.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleExecutePayment} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Payment Method
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {["M-PESA", "BANK TRANSFER", "CASH"].map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setPaymentMethod(method)}
+                      className={cn(
+                        "py-2 rounded-xl border text-center font-black transition-all text-[10px]",
+                        paymentMethod === method
+                          ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm"
+                          : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600"
+                      )}
+                    >
+                      {method}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  {paymentMethod} Reference / Transaction Code *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. QDX871BZA or FT260904..."
+                  value={paymentRef}
+                  onChange={(e) => setPaymentRef(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono font-bold placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-sm tracking-wider"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Amount to Pay (KES)
+                </label>
+                <input
+                  type="number"
+                  required
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Payment Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Cleared via Safaricom Daraja B2C"
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedItemForPayment(null)}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessingPayment}
+                  className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {isProcessingPayment ? "Recording..." : "Confirm & Record"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

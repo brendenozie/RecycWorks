@@ -31,11 +31,22 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      // Role-based redirection logic for RecycOp
-      let destination = redirectTo;
-      if (user.role === 'admin') destination = '/admin/stats';
-      if (user.role === 'driver') destination = '/mobile/transit';
-      if (user.role === 'operations') destination = '/ops/verification';
+      const normRole = (user.role || '').toLowerCase().replace('-', '_');
+      let destination = '/admindashboard';
+
+      if (normRole === 'driver') {
+        destination = '/driverdashboard';
+      } else if (normRole === 'field_officer' || normRole === 'field-officer') {
+        destination = '/fieldOfficerdashboard';
+      } else if (normRole === 'supplier') {
+        destination = '/supplierdashboard';
+      } else if (normRole === 'operations') {
+        destination = '/operationsdashboard';
+      } else if (normRole === 'accounts') {
+        destination = '/admindashboard?tab=payouts';
+      } else {
+        destination = '/admindashboard';
+      }
       
       router.replace(destination);
     }

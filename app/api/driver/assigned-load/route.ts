@@ -40,39 +40,60 @@ export async function GET(request: Request) {
 
     const db = await getDatabase();
 
-    // 2. Fetch all non-completed active inventory assigned to this specific driver
-    // Returning multiple loads via .toArray() since your frontend maps over them
+    // 2. Fetch all non-completed active inventory assigned to this driver or available for pickup
     const assignedLoads = await db
       .collection("inventory")
       .find(
         {
-          driverId: driverId, //new ObjectId(driverId) || // Ensure driverId is treated as a string if not an ObjectId
-          status: { $in: ["pending", "dispatched", "loaded", "in-transit"] },
+          $or: [
+            { driverId: driverId },
+            { driverId: { $in: ["", null] } },
+          ],
+          status: { $in: ["pending", "captured", "dispatched", "loaded", "in-transit", "arrived"] },
         },
         { sort: { timestamp: -1 } },
       )
       .toArray();
 
     // 3. Map the database documents to the frontend requirements
-    const mappedLoads = assignedLoads.map((load) => {
-      const numericWeight = parseFloat(load.weight) || 0;
-      const weightInKg = load.weight?.toLowerCase().includes("t")
-        ? numericWeight * 1000
-        : numericWeight;
+    const mappedLoads = assignedLoads.map((load: any) => {
+      const numericWeight = parseFloat(load.quantity || load.weight) || 0;
+      const weightInKg = load.normalizedWeightKg
+        ? load.normalizedWeightKg
+        : (load.unit === "TONNES" || load.weight?.toLowerCase().includes("t")
+            ? numericWeight * 1000
+            : numericWeight);
+
+      const loc = load.pickupLocation;
+      let originAddress = "Supplier Yard";
+      if (loc && (loc.county || loc.landmark)) {
+        originAddress = [loc.landmark, loc.subCounty, loc.county].filter(Boolean).join(", ");
+      } else if (load.pickupAddress) {
+        originAddress = load.pickupAddress;
+      }
 
       return {
-        _id: load._id,
-        status: load.status,
-        supplierName: load.supplier || "Independent Node",
+        _id: load._id.toString(),
+        id: load._id.toString(),
+        loadNumber: load.loadNumber || `RWL-${load._id.toString().slice(-4)}`,
+        status: load.status || "pending",
+        supplierName: load.supplierName || load.supplier || "Partner Supplier",
+        supplierPhone: load.supplierPhone || load.phoneNumber || "",
         totalWeight: weightInKg,
-        vehicle: "ASSIGNED TRANSIT",
-        hub: "Nairobi Core Node",
-        grade: load.grade,
-        name: load.name,
+        weightLabel: load.weight || `${numericWeight} ${load.unit || 'KG'}`,
+        vehicle: load.vehiclePlate || "ISUZU FRR (KDC 492X)",
+        hub: load.hubName || "Central Receiving Yard (Nairobi)",
+        destination: load.hubName || "Central Receiving Yard (Nairobi)",
+        originAddress,
+        grade: load.grade || "Standard",
+        name: load.material || load.name || "Recyclable Polymer",
+        material: load.material || load.name || "Recyclable Polymer",
+        photos: load.photos || [],
+        proofOfCollectionPhoto: load.proofOfCollectionPhoto || null,
+        notes: load.notes || "",
       };
     });
 
-    // Return the array directly as your frontend expects an array to map over
     return NextResponse.json(mappedLoads);
   } catch (error) {
     console.error("Active Load Sync Error:", error);
