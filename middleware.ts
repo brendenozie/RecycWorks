@@ -1,112 +1,119 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+/**
+ * Safely decodes base64 JWT payload in Next.js Edge Runtime without Node crypto dependencies.
+ */
+function parseJwtPayload(token: string): { userId?: string; email?: string; role?: string; isAdmin?: boolean; exp?: number } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
+// All protected dashboard route prefixes
+const DASHBOARD_ROUTES = [
+  '/admindashboard',
+  '/operationsdashboard',
+  '/supplierdashboard',
+  '/driverdashboard',
+  '/fieldOfficerdashboard',
+  '/partnerdashboard',
+  '/profile',
+];
 
 export function middleware(request: NextRequest) {
-   if (request.nextUrl.pathname.startsWith('/api/webhooks/whop')) {
+  const { pathname, search } = request.nextUrl;
+
+  // 1. Bypass webhooks and static assets
+  if (pathname.startsWith('/api/webhooks/whop')) {
     return NextResponse.next();
   }
 
-  const { pathname } = request.nextUrl;
-
-
-
-
-  // Get the pathname of the request (e.g. /, /protected, /api/auth)
-  const path = request.nextUrl.pathname;
-
-
-
-  // Define protected routes
-  const protectedRoutes = [
-    '/charts',
-    '/dashboard',
-    '/signals',
-    '/news',
-    '/insights',
-    '/subscription',
-    '/profile',
-  ];
-
-  // Define auth routes (login, register, etc.)
-  const authRoutes = [
-    '/login',
-    '/register',
-    '/forgot-password',
-    '/reset-password',
-    '/verify-email',
-  ];
-
-  // if (request.nextUrl.pathname.startsWith('/api/whop')) {
-  //   return NextResponse.next();
-  // }
-
-  // Check if the current path is a protected route
-  // const isProtectedRoute = protectedRoutes.some(route => 
-  //   path.startsWith(route)
-  // );
-
-  // Check if the current path is an auth route
-  // const isAuthRoute = authRoutes.some(route => 
-  //   path.startsWith(route)
-  // );
-
-  // For protected routes, let the client-side auth context handle authentication
-  // The middleware will just pass through and let the page components check auth
-  // if (isProtectedRoute) {
-  //   return NextResponse.next();
-  // }
-
-  // For auth routes, let them handle their own logic
-  // if (isAuthRoute) {
-  //   return NextResponse.next();
-  // }
-
-    // 1. Check if the URL starts with /ref/
+  // 2. Referral redirection support
   if (pathname.startsWith('/ref/')) {
     const segments = pathname.split('/');
-    const refCode = segments[segments.length - 1]; // Get 'rp-98fd17'
+    const refCode = segments[segments.length - 1];
 
     if (refCode) {
-      // 2. Create a redirect response to the register page
       const response = NextResponse.redirect(new URL('/register', request.url));
-
-      // 3. Set the cookie in the response object
       response.cookies.set('refereer_code', refCode, {
-        maxAge: 60 * 60 * 24 * 7, // 7 days
+        maxAge: 60 * 60 * 24 * 7,
         path: '/',
-        httpOnly: false, // Set to false so your Client Component can read it
+        httpOnly: false,
         sameSite: 'lax',
       });
-
       return response;
     }
   }
 
-  // For all other routes, continue
+  // 3. Protected Dashboard Routes Check
+  const isDashboardRoute = DASHBOARD_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
+
+  if (isDashboardRoute) {
+    const tokenCookie = request.cookies.get('token')?.value || request.cookies.get('recyc_token')?.value;
+    const nextAuthCookie =
+      request.cookies.get('next-auth.session-token')?.value ||
+      request.cookies.get('__Secure-next-auth.session-token')?.value;
+
+    const token = tokenCookie || nextAuthCookie;
+
+    // Not logged in -> Redirect to login with intended return destination
+    if (!token) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname + search);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // If it is a JWT token, check expiration & role
+    if (tokenCookie) {
+      const payload = parseJwtPayload(tokenCookie);
+      if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('redirect', pathname + search);
+        const response = NextResponse.redirect(loginUrl);
+        response.cookies.delete('token');
+        return response;
+      }
+
+      const userRole = (payload.role || '').toLowerCase().replace('-', '_');
+      const isAdmin = payload.isAdmin || userRole === 'admin';
+
+      // Restrict Admin Dashboard to Admin and Operations roles
+      if (pathname.startsWith('/admindashboard') && !isAdmin && userRole !== 'operations') {
+        let dest = '/supplierdashboard';
+        if (userRole === 'driver') dest = '/driverdashboard';
+        else if (userRole === 'field_officer') dest = '/fieldOfficerdashboard';
+        return NextResponse.redirect(new URL(dest, request.url));
+      }
+    }
+  }
+
   return NextResponse.next();
-} 
+}
 
 export const config = {
   matcher: [
     '/ref/:path*',
-    '/((?!api/whop|api|_next/static|_next/image|favicon.ico|public).*)',
+    '/admindashboard/:path*',
+    '/operationsdashboard/:path*',
+    '/supplierdashboard/:path*',
+    '/driverdashboard/:path*',
+    '/fieldOfficerdashboard/:path*',
+    '/partnerdashboard/:path*',
+    '/profile/:path*',
   ],
 };
-
-
-// export const config = {
-//   matcher: [
-//     /*
-//      * Match all request paths except for the ones starting with:
-//      * - api (API routes)
-//      * - _next/static (static files)
-//      * - _next/image (image optimization files)
-//      * - favicon.ico (favicon file)
-//      * - public folder
-//      */
-//     // '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
-//     // '/ref/:path*',
-//     // "/((?!api/whop).*)"
-//   ],
-// };

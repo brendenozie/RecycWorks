@@ -21,6 +21,7 @@ import {
   CpuChipIcon
 } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 // --- Components ---
 import { UserAccess } from "./components/userAccess";
@@ -97,7 +98,8 @@ export default function AdminDashboard() {
   }, [isMobileMenuOpen]);
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-[#05010d] text-slate-900 dark:text-white font-sans antialiased selection:bg-emerald-500/30 overflow-hidden">
+    <AuthGuard requireAdmin allowedRoles={["admin", "operations"]}>
+      <div className="flex min-h-screen bg-slate-50 dark:bg-[#05010d] text-slate-900 dark:text-white font-sans antialiased selection:bg-emerald-500/30 overflow-hidden">
 
       {/* --- DYNAMIC BACKGROUND GLOW --- */}
       <div className="fixed inset-0 pointer-events-none z-0">
@@ -311,5 +313,6 @@ export default function AdminDashboard() {
         </div>
       </main>
     </div>
+  </AuthGuard>
   );
 }

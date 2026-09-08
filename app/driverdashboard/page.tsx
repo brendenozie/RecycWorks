@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/auth-context";
 import { cn } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import { 
   ArchiveBoxIcon, 
   ExclamationTriangleIcon,
@@ -518,7 +519,8 @@ export default function DriverMobileDashboard() {
   const completedJobsList = loads.filter(l => l.status === "delivered");
 
   return (
-    <div className="min-h-screen bg-[#070b14] text-white font-sans flex flex-col selection:bg-emerald-500/30">
+    <AuthGuard allowedRoles={["driver", "admin"]}>
+      <div className="min-h-screen bg-[#070b14] text-white font-sans flex flex-col selection:bg-emerald-500/30">
       
       {/* --- STATUS BAR --- */}
       <header className="px-4 py-3 bg-[#0c1222]/95 backdrop-blur-md sticky top-0 z-40 border-b border-white/10 flex justify-between items-center">
@@ -1748,5 +1750,6 @@ export default function DriverMobileDashboard() {
         </div>
       )}
     </div>
+  </AuthGuard>
   );
 }

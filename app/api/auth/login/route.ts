@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
       const { password: _, ...adminData } = admin;
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         message: "Admin login successful",
         token,
         user: {
@@ -62,6 +62,15 @@ export async function POST(request: NextRequest) {
           isAdmin: true,
         },
       });
+
+      response.cookies.set("token", token, {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
+
+      return response;
     }
 
     // 2. Check the 'users' collection (Operations, Suppliers, Drivers, Hub Managers, etc.)
@@ -129,7 +138,7 @@ export async function POST(request: NextRequest) {
 
     const { password: _, ...userWithoutPassword } = user;
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: "Login successful",
       token,
       user: {
@@ -137,6 +146,15 @@ export async function POST(request: NextRequest) {
         isAdmin: user.isAdmin || false,
       },
     });
+
+    response.cookies.set("token", token, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    return response;
   } catch (error) {
     console.error("RecycWorks Login error:", error);
     return NextResponse.json(

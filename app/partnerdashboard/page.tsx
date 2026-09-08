@@ -16,6 +16,7 @@ import {
   ChartBarIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CubeIcon, CurrencyDollarIcon, ArrowPathRoundedSquareIcon } from "@heroicons/react/24/outline";
 
 const inventoryBatches = [
@@ -28,7 +29,8 @@ export default function PartnerPortal() {
   const [activeView, setActiveView] = useState("inventory");
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-[#02040a] text-slate-900 dark:text-white font-sans antialiased">
+    <AuthGuard allowedRoles={["partner", "supplier", "admin"]}>
+      <div className="flex min-h-screen bg-slate-50 dark:bg-[#02040a] text-slate-900 dark:text-white font-sans antialiased">
       
       {/* --- SIDE NAVIGATION --- */}
       <aside className="w-20 lg:w-72 border-r border-slate-200 dark:border-white/5 flex flex-col bg-white dark:bg-[#05010d] sticky top-0 h-screen transition-all">
@@ -191,5 +193,6 @@ export default function PartnerPortal() {
         </div>
       </main>
     </div>
+  </AuthGuard>
   );
 }

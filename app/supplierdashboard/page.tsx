@@ -8,6 +8,7 @@ import {
   BellIcon, MagnifyingGlassIcon, Bars3Icon, PlusIcon, XMarkIcon
 } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 // Component Imports
 import { SupplierOverview } from "./components/supplierOverview";
@@ -29,7 +30,8 @@ export default function SupplierDashboard({ userToken }: { userToken?: string })
   
 
   return (
-    <div className="flex min-h-screen bg-[#fafafa] dark:bg-[#05010d] text-slate-900 dark:text-white font-sans antialiased overflow-hidden">
+    <AuthGuard allowedRoles={["supplier", "admin"]}>
+      <div className="flex min-h-screen bg-[#fafafa] dark:bg-[#05010d] text-slate-900 dark:text-white font-sans antialiased overflow-hidden">
       
       {/* --- BACKGROUND BLOOM --- */}
       <div className="fixed inset-0 pointer-events-none z-0">
@@ -199,5 +201,6 @@ export default function SupplierDashboard({ userToken }: { userToken?: string })
         </main>
       </div>
     </div>
+  </AuthGuard>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 // Components
 import OpsDashboard from "./components/operationsDashboard";
@@ -39,7 +40,8 @@ export default function MainOperationsLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-[#fafafa] dark:bg-[#05010d] text-slate-900 dark:text-white font-sans antialiased overflow-hidden">
+    <AuthGuard allowedRoles={["operations", "admin"]}>
+      <div className="flex min-h-screen bg-[#fafafa] dark:bg-[#05010d] text-slate-900 dark:text-white font-sans antialiased overflow-hidden">
       
       {/* --- AMBIENT BACKGROUND --- */}
       <div className="fixed inset-0 pointer-events-none z-0">
@@ -157,5 +159,6 @@ export default function MainOperationsLayout() {
         )}
       </AnimatePresence>
     </div>
+  </AuthGuard>
   );
 }

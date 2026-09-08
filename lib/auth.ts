@@ -218,8 +218,23 @@ export async function findUser(identifier: string): Promise<User | null> {
 export async function findUserById(id: string): Promise<User | null> {
   const db = await getDatabase();
 
-  const user = await db.collection("users").findOne({ _id: new ObjectId(id) });
-  if (!user) return null;
+  let user = await db.collection("users").findOne({ _id: new ObjectId(id) });
+  if (!user) {
+    user = await db.collection("admins").findOne({ _id: new ObjectId(id) });
+    if (user) {
+      return {
+        ...user,
+        _id: user._id.toString(),
+        firstName: user.firstName || "Admin",
+        lastName: user.lastName || "User",
+        email: user.email,
+        role: "admin",
+        isAdmin: true,
+        status: "active",
+      } as User;
+    }
+    return null;
+  }
 
   return {
     ...user,

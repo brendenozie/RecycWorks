@@ -59,13 +59,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session.appToken) {
           localStorage.setItem('token', session.appToken);
+          if (typeof document !== "undefined") {
+            document.cookie = `token=${session.appToken}; path=/; max-age=604800; SameSite=Lax`;
+          }
         }
         return;
       }
 
       // 2. Fallback to JWT Token for API-only sessions
-      const token = localStorage.getItem('token');
+      const token = typeof window !== "undefined" ? localStorage.getItem('token') : null;
       if (!token) return;
+
+      // Sync cookie if not already set
+      if (typeof document !== "undefined") {
+        document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
+      }
 
       const response = await fetch('/api/auth/verify', {
         method: 'POST',
@@ -80,6 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user);
       } else if (response.status === 401) {
         localStorage.removeItem('token');
+        if (typeof document !== "undefined") {
+          document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+        }
       }
     } catch (error) {
       console.error('RecycWorks Auth Check Failed:', error);
@@ -97,6 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const login = (token: string, role: string) => {
     localStorage.setItem('token', token);
+    if (typeof document !== "undefined") {
+      document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
+    }
     
     // Canonical role-based operational destinations
     let destination = '/admindashboard';
@@ -121,6 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     localStorage.removeItem('token');
+    if (typeof document !== "undefined") {
+      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+    }
     await signOut({ redirect: true, callbackUrl: '/login' });
     setUser(null);
   };

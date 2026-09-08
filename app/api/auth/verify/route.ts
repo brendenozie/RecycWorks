@@ -3,12 +3,24 @@ import { verifyToken, findUserById } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    // Check for token in Authorization header first, then in request body
     const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "") || (await request.json()).token;
+    let token = authHeader?.replace("Bearer ", "");
 
     if (!token) {
-      return NextResponse.json({ error: "Token is required" }, { status: 400 });
+      try {
+        const body = await request.json();
+        token = body?.token;
+      } catch {
+        // Body was empty or not JSON
+      }
+    }
+
+    if (!token) {
+      token = request.cookies.get("token")?.value || request.cookies.get("recyc_token")?.value;
+    }
+
+    if (!token) {
+      return NextResponse.json({ error: "Token is required" }, { status: 401 });
     }
 
     const decoded = verifyToken(token);

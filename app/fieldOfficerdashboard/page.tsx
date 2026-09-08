@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/components/auth-context";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ALL_COUNTY_NAMES, getSubCounties } from "@/lib/locations";
@@ -302,7 +303,8 @@ export default function FieldOfficerDashboard() {
   const estimatedStipendKes = suppliersToday.length * 500 + loadsToday.length * 350;
 
   return (
-    <div className="min-h-screen bg-[#070b14] text-white flex flex-col font-sans selection:bg-emerald-500/30">
+    <AuthGuard allowedRoles={["field-officer", "field_officer", "operations", "admin"]}>
+      <div className="min-h-screen bg-[#070b14] text-white flex flex-col font-sans selection:bg-emerald-500/30">
       {/* Top Field Operations Header */}
       <header className="sticky top-0 z-40 bg-[#0c1222]/95 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -927,5 +929,6 @@ export default function FieldOfficerDashboard() {
         )}
       </main>
     </div>
+  </AuthGuard>
   );
 }
