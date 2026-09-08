@@ -96,11 +96,30 @@ export async function PUT(request: NextRequest) {
 
     const normMat = material.trim();
     const normGrd = grade.trim();
-    const key = `${normMat.toLowerCase()}::${normGrd.toLowerCase()}`;
+    const newGrd = typeof body.newGrade === "string" ? body.newGrade.trim() : "";
+    const finalGrd = newGrd && newGrd !== normGrd ? newGrd : normGrd;
+
+    const oldKey = `${normMat.toLowerCase()}::${normGrd.toLowerCase()}`;
+    const key = `${normMat.toLowerCase()}::${finalGrd.toLowerCase()}`;
+
+    // 1. If grade name changed, update feedstockCategories array element
+    if (finalGrd !== normGrd) {
+      const categoryUpdate = await db.collection("feedstockCategories").updateOne(
+        { name: { $regex: new RegExp(`^${normMat}$`, "i") }, grades: normGrd },
+        { 
+          $set: { "grades.$": finalGrd, updatedAt: new Date() } 
+        }
+      );
+
+      // If key changed, purge the old override key
+      if (oldKey !== key) {
+        await db.collection("pricing_overrides").deleteOne({ key: oldKey });
+      }
+    }
 
     const updateDoc: Record<string, any> = {
       material: normMat,
-      grade: normGrd,
+      grade: finalGrd,
       key,
       updatedAt: new Date(),
     };
@@ -124,7 +143,8 @@ export async function PUT(request: NextRequest) {
       entityType: "pricing",
       details: {
         material: normMat,
-        grade: normGrd,
+        grade: finalGrd,
+        previousGrade: finalGrd !== normGrd ? normGrd : undefined,
         pricePerKg: updateDoc.pricePerKg,
         active: updateDoc.active,
       },
@@ -133,7 +153,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Updated pricing configuration for ${normMat} - ${normGrd}`,
+      message: `Updated configuration for ${normMat} - ${finalGrd}`,
       rule: updateDoc,
     });
   } catch (error: any) {

@@ -2,35 +2,61 @@ import { getDatabase } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 
-export async function PUT(request: Request) {
+export async function PUT(
+  request: Request,
+  { params }: { params?: Promise<{ id: string }> }
+) {
   try {
     const db = await getDatabase();
     const body = await request.json();
 
-    const id = body._id || body.id; // Use _id if available, otherwise fallback to id
+    const paramId = params ? (await params).id : undefined;
+    const id = body._id || body.id || paramId;
 
+    const name = body.name || body.material;
     // Basic structural parameter validations
-    if (!id || !body.name || !body.grade || !body.weight || !body.supplier) {
+    if (!id || !name || !body.grade || !body.weight || !body.supplier) {
       return NextResponse.json(
         {
           error:
-            "Missing required inventory parameters (_id, name, grade, weight, supplier)",
+            "Missing required inventory parameters (_id/id, name/material, grade, weight, supplier)",
         },
         { status: 400 },
       );
     }
 
-    const updateData = {
-      name: body.name,
+    const cleanWeight = typeof body.weight === "string" ? body.weight : `${body.weight}kg`;
+    const parsedWeight = parseFloat(cleanWeight.replace(/[^\d.-]/g, "")) || 0;
+    const totalSacks = typeof body.totalSacks === "number" ? body.totalSacks : (Array.isArray(body.sacks) ? body.sacks.length : parseInt(body.totalSacks || "0", 10) || 0);
+    const sacks = Array.isArray(body.sacks) ? body.sacks.map(Number) : [];
+
+    const updateData: Record<string, any> = {
+      name,
+      material: name,
       grade: body.grade,
-      weight: body.weight,
+      weight: cleanWeight,
+      normalizedWeightKg: parsedWeight,
+      quantity: parsedWeight,
+      totalSacks,
+      sacks,
+      packageType: body.packageType || (totalSacks > 0 ? "Woven Sacks" : "Standard"),
+      hubId: body.hubId || "",
+      notes: body.notes || "",
+      unitPricePerKg: Number(body.unitPricePerKg || 0),
+      grossValueKes: Number(body.unitPricePerKg || 0) * parsedWeight,
       supplier: body.supplier,
+      supplierName: body.supplier,
       driver: body.driver || "",
+      driverName: body.driver || "",
       driverId: body.driverId || "",
       supplierId: body.supplierId || "",
       status: body.status || "pending",
       updatedAt: new Date(),
     };
+
+    if (body.loadNumber) {
+      updateData.loadNumber = body.loadNumber;
+    }
 
     // Update the manifest in the central inventory tracking ledger
     await db

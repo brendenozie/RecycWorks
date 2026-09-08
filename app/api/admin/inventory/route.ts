@@ -22,26 +22,58 @@ export async function GET(request: Request) {
       .sort({ createdAt: -1, timestamp: -1 })
       .toArray();
 
-    const normalizedItems = items.map((l) => ({
-      _id: l._id.toString(),
-      id: l._id.toString(),
-      loadNumber: l.loadNumber || `RWL-${l._id.toString().slice(-6).toUpperCase()}`,
-      name: l.material || l.name || "Mixed Plastics",
-      material: l.material || l.name || "Mixed Plastics",
-      grade: l.grade || "Standard",
-      weight: l.weight || `${l.normalizedWeightKg || l.quantity || 0}kg`,
-      normalizedWeightKg: Number(l.normalizedWeightKg || l.quantity || 0),
-      supplier: l.supplierName || l.supplier || "Supplier",
-      supplierName: l.supplierName || l.supplier || "Supplier",
-      supplierId: l.supplierId ? l.supplierId.toString() : "",
-      driver: l.driverName || l.driver || "",
-      driverName: l.driverName || l.driver || "",
-      driverId: l.driverId ? l.driverId.toString() : "",
-      status: l.status || "pending",
-      paymentStatus: l.paymentStatus || "pending",
-      timestamp: l.timestamp || l.createdAt || new Date(),
-      createdAt: l.createdAt || l.timestamp || new Date(),
-    }));
+    const normalizedItems = items.map((l) => {
+      // Calculate sacks array from direct property or aggregated items
+      const sacks: number[] = Array.isArray(l.sacks)
+        ? l.sacks
+        : Array.isArray(l.items)
+        ? l.items.flatMap((g: any) => (Array.isArray(g.sacks) ? g.sacks : []))
+        : [];
+
+      // Calculate total sacks count
+      const totalSacks =
+        typeof l.totalSacks === "number"
+          ? l.totalSacks
+          : sacks.length > 0
+          ? sacks.length
+          : Array.isArray(l.items)
+          ? l.items.reduce(
+              (sum: number, g: any) =>
+                sum + (g.sackCount || (Array.isArray(g.sacks) ? g.sacks.length : 0)),
+              0
+            )
+          : 0;
+
+      return {
+        _id: l._id.toString(),
+        id: l._id.toString(),
+        loadNumber: l.loadNumber || `RWL-${l._id.toString().slice(-6).toUpperCase()}`,
+        name: l.material || l.name || "Mixed Plastics",
+        material: l.material || l.name || "Mixed Plastics",
+        grade: l.grade || "Standard",
+        weight: l.weight || `${l.normalizedWeightKg || l.quantity || 0}kg`,
+        normalizedWeightKg: Number(l.normalizedWeightKg || l.quantity || 0),
+        totalSacks,
+        sacks,
+        packageType: l.packageType || (totalSacks > 0 ? "Woven Sacks" : "Standard"),
+        items: Array.isArray(l.items) ? l.items : [],
+        hubId: l.hubId ? l.hubId.toString() : l.hub || "",
+        hub: l.hubName || l.hub || "",
+        notes: l.notes || l.driverNotes || l.receivingNotes || "",
+        unitPricePerKg: Number(l.unitPricePerKg || 0),
+        grossValueKes: Number(l.grossValueKes || l.netValueKes || 0),
+        supplier: l.supplierName || l.supplier || "Supplier",
+        supplierName: l.supplierName || l.supplier || "Supplier",
+        supplierId: l.supplierId ? l.supplierId.toString() : "",
+        driver: l.driverName || l.driver || "",
+        driverName: l.driverName || l.driver || "",
+        driverId: l.driverId ? l.driverId.toString() : "",
+        status: l.status || "pending",
+        paymentStatus: l.paymentStatus || "pending",
+        timestamp: l.timestamp || l.createdAt || new Date(),
+        createdAt: l.createdAt || l.timestamp || new Date(),
+      };
+    });
 
     return NextResponse.json(normalizedItems);
   } catch (error) {
@@ -52,54 +84,53 @@ export async function GET(request: Request) {
   }
 }
 
-// --- GET: Fetch All Material Manifests ---
-// export async function GET(request: Request) {
-//   try {
-
-//     const db = await getDatabase();
-//     // Fetch items sorted by newest first
-//     const items = await db
-//       .collection("inventory")
-//       .find({})
-//       .sort({ timestamp: -1 })
-//       .toArray();
-
-//     return NextResponse.json(items);
-//   } catch (error) {
-//     return NextResponse.json(
-//       { error: "Failed to fetch inventory matrix logs" },
-//       { status: 500 },
-//     );
-//   }
-// }
-
 // --- POST: Sync New Material with Central Ledger ---
 export async function POST(request: Request) {
   try {
     const db = await getDatabase();
     const body = await request.json();
 
+    const name = body.name || body.material;
     // Basic structural parameter validations
-    if (!body.name || !body.grade || !body.weight || !body.supplier) {
+    if (!name || !body.grade || !body.weight || !body.supplier) {
       return NextResponse.json(
         {
           error:
-            "Missing required inventory parameters (name, grade, weight, supplier)",
+            "Missing required inventory parameters (name/material, grade, weight, supplier)",
         },
         { status: 400 },
       );
     }
 
+    const cleanWeight = typeof body.weight === "string" ? body.weight : `${body.weight}kg`;
+    const parsedWeight = parseFloat(cleanWeight.replace(/[^\d.-]/g, "")) || 0;
+    const totalSacks = typeof body.totalSacks === "number" ? body.totalSacks : (Array.isArray(body.sacks) ? body.sacks.length : parseInt(body.totalSacks || "0", 10) || 0);
+    const sacks = Array.isArray(body.sacks) ? body.sacks.map(Number) : [];
+
     const newItem = {
-      name: body.name,
-      grade: body.grade, // Selected contextually from the updated dynamic array template
-      weight: body.weight, // e.g., "12.4t"
+      loadNumber: body.loadNumber || `RWL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+      name,
+      material: name,
+      grade: body.grade,
+      weight: cleanWeight,
+      normalizedWeightKg: parsedWeight,
+      quantity: parsedWeight,
+      totalSacks,
+      sacks,
+      packageType: body.packageType || (totalSacks > 0 ? "Woven Sacks" : "Standard"),
+      hubId: body.hubId || "",
+      notes: body.notes || "",
+      unitPricePerKg: Number(body.unitPricePerKg || 0),
+      grossValueKes: Number(body.unitPricePerKg || 0) * parsedWeight,
       supplier: body.supplier,
+      supplierName: body.supplier,
       driver: body.driver || "",
+      driverName: body.driver || "",
       driverId: body.driverId || "",
       supplierId: body.supplierId || "",
-      status: body.status || "pending", // Default status for new entries pending would indicate they are awaiting further processing or review
+      status: body.status || "pending",
       timestamp: new Date(),
+      createdAt: new Date(),
     };
 
     // 1. Insert the manifest into the central inventory tracking ledger
@@ -107,15 +138,11 @@ export async function POST(request: Request) {
 
     // 2. Cross-collection update: Adjust matching group category weights and metrics asynchronously
     try {
-      const parsedWeight = parseFloat(body.weight.replace(/[^\d.-]/g, "")) || 0;
-
-      // Update the active count and increment calculated metadata metrics
       await db.collection("feedstockCategories").updateOne(
-        { name: body.name },
+        { name },
         {
           $inc: { activeOrders: 1 },
           $set: { updatedAt: new Date() },
-          // Optional: You can parse and recalculate totalWeight into standard text tags here if desired
         },
       );
     } catch (relationError) {
@@ -126,7 +153,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { _id: result.insertedId, ...newItem },
+      { _id: result.insertedId, id: result.insertedId.toString(), ...newItem },
       { status: 201 },
     );
   } catch (error) {
@@ -142,32 +169,56 @@ export async function PUT(request: Request) {
     const db = await getDatabase();
     const body = await request.json();
 
+    const targetId = body._id || body.id;
+    const name = body.name || body.material;
+
     // Basic structural parameter validations
-    if (!body._id || !body.name || !body.grade || !body.weight || !body.supplier) {
+    if (!targetId || !name || !body.grade || !body.weight || !body.supplier) {
       return NextResponse.json(
         {
           error:
-            "Missing required inventory parameters (_id, name, grade, weight, supplier)",
+            "Missing required inventory parameters (_id/id, name/material, grade, weight, supplier)",
         },
         { status: 400 },
       );
     }
 
-    const updateData = {
-      name: body.name,
+    const cleanWeight = typeof body.weight === "string" ? body.weight : `${body.weight}kg`;
+    const parsedWeight = parseFloat(cleanWeight.replace(/[^\d.-]/g, "")) || 0;
+    const totalSacks = typeof body.totalSacks === "number" ? body.totalSacks : (Array.isArray(body.sacks) ? body.sacks.length : parseInt(body.totalSacks || "0", 10) || 0);
+    const sacks = Array.isArray(body.sacks) ? body.sacks.map(Number) : [];
+
+    const updateData: Record<string, any> = {
+      name,
+      material: name,
       grade: body.grade,
-      weight: body.weight,
+      weight: cleanWeight,
+      normalizedWeightKg: parsedWeight,
+      quantity: parsedWeight,
+      totalSacks,
+      sacks,
+      packageType: body.packageType || (totalSacks > 0 ? "Woven Sacks" : "Standard"),
+      hubId: body.hubId || "",
+      notes: body.notes || "",
+      unitPricePerKg: Number(body.unitPricePerKg || 0),
+      grossValueKes: Number(body.unitPricePerKg || 0) * parsedWeight,
       supplier: body.supplier,
+      supplierName: body.supplier,
       driver: body.driver || "",
+      driverName: body.driver || "",
       driverId: body.driverId || "",
       supplierId: body.supplierId || "",
       status: body.status || "pending",
       updatedAt: new Date(),
     };
 
+    if (body.loadNumber) {
+      updateData.loadNumber = body.loadNumber;
+    }
+
     // Update the manifest in the central inventory tracking ledger
     await db.collection("inventory").updateOne(
-      { _id: new ObjectId(body._id) },
+      { _id: new ObjectId(targetId) },
       { $set: updateData },
     );
 

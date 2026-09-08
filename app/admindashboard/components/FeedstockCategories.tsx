@@ -66,6 +66,7 @@ export function FeedstockCategories() {
   const [editingPriceRule, setEditingPriceRule] = useState<{
     material: string;
     grade: string;
+    originalGrade?: string;
     price: number;
     active: boolean;
   } | null>(null);
@@ -246,6 +247,12 @@ export function FeedstockCategories() {
   // --- SAVE GRADE PRICING / ACTIVE TOGGLE (REQ 18, 31, 32) ---
   const handleSavePrice = async () => {
     if (!editingPriceRule) return;
+    const trimmedGrade = editingPriceRule.grade.trim();
+    if (!trimmedGrade) {
+      toast.error("Sorting grade name cannot be blank.");
+      return;
+    }
+
     setIsSavingPrice(true);
     try {
       const res = await fetch("/api/admin/feedstock/pricing", {
@@ -253,17 +260,21 @@ export function FeedstockCategories() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           material: editingPriceRule.material,
-          grade: editingPriceRule.grade,
+          grade: editingPriceRule.originalGrade || trimmedGrade,
+          newGrade: trimmedGrade,
           pricePerKg: editingPriceRule.price,
           active: editingPriceRule.active,
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to update pricing");
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to update pricing");
+      }
 
-      toast.success(`Updated rate: KES ${editingPriceRule.price}/KG for ${editingPriceRule.grade}`);
+      toast.success(`Updated rate: KES ${editingPriceRule.price}/KG for ${trimmedGrade}`);
       setEditingPriceRule(null);
-      fetchFeedstocksAndPricing();
+      await fetchFeedstocksAndPricing();
     } catch (e: any) {
       toast.error(e.message || "Failed to update price");
     } finally {
@@ -487,12 +498,13 @@ export function FeedstockCategories() {
                                           setEditingPriceRule({
                                             material: item.name,
                                             grade: g,
+                                            originalGrade: g,
                                             price,
                                             active: !isInactive,
                                           })
                                         }
                                         className="p-1 text-slate-400 hover:text-emerald-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
-                                        title="Configure Price"
+                                        title="Configure Grade & Price"
                                       >
                                         <PencilSquareIcon className="w-3.5 h-3.5" />
                                       </button>
@@ -743,23 +755,42 @@ export function FeedstockCategories() {
               <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <h4 className="text-base font-black text-slate-900 dark:text-white">
-                    Configure Grade Pricing
+                    Configure Grade & Pricing
                   </h4>
                   <p className="text-[11px] text-slate-400">
-                    {editingPriceRule.material} • {editingPriceRule.grade}
+                    {editingPriceRule.material}
                   </p>
                 </div>
                 <button
                   onClick={() => setEditingPriceRule(null)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                  className="p-1 rounded-lg text-slate-400 hover:text-white cursor-pointer"
                 >
                   <XMarkIcon className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Sorting Grade Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingPriceRule.grade}
+                    onChange={(e) =>
+                      setEditingPriceRule({
+                        ...editingPriceRule,
+                        grade: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. Clear Bales, Clean Flakes"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-emerald-500 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Rate Benchmark (Price per KG in KES) *
                   </label>
                   <div className="relative">
@@ -946,30 +977,61 @@ export function FeedstockCategories() {
                       </button>
                     </div>
 
-                    {/* Rendered tag buffer zone */}
-                    <div className="flex flex-wrap gap-2 p-3 min-h-[60px] border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 rounded-xl">
+                    {/* Rendered tag buffer zone with live pricing per grade */}
+                    <div className="flex flex-col gap-2 p-3 min-h-[60px] border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 rounded-xl">
                       {formData.grades.length === 0 ? (
                         <span className="text-xs text-slate-400 dark:text-slate-500 italic my-auto">
                           At least one valid grading criteria tag is required.
                         </span>
                       ) : (
-                        formData.grades.map((grade, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs"
-                          >
-                            <TagIcon className="w-3.5 h-3.5 text-slate-400" />
-                            {grade}
-                            <button
-                              type="button"
-                              disabled={isSubmitting}
-                              onClick={() => removeGradeTag(index)}
-                              className="ml-1 text-slate-400 hover:text-red-500 transition-colors"
+                        formData.grades.map((grade, index) => {
+                          const matName = formData.name || editingItem?.name || "";
+                          const key = `${matName.toLowerCase()}::${grade.toLowerCase()}`;
+                          const price = pricesMap[key] !== undefined ? pricesMap[key] : getApplicablePricePerKg(matName, grade);
+
+                          return (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs shadow-xs"
                             >
-                              <XMarkIcon className="w-3.5 h-3.5" />
-                            </button>
-                          </span>
-                        ))
+                              <div className="flex items-center gap-2 truncate">
+                                <TagIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{grade}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs">
+                                  KES {price}/kg
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={isSubmitting}
+                                  onClick={() => {
+                                    setEditingPriceRule({
+                                      material: matName,
+                                      grade,
+                                      originalGrade: grade,
+                                      price,
+                                      active: true,
+                                    });
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-emerald-500 rounded transition-colors"
+                                  title="Edit Grade Name & Price per KG"
+                                >
+                                  <PencilSquareIcon className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isSubmitting}
+                                  onClick={() => removeGradeTag(index)}
+                                  className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                  title="Remove Grade"
+                                >
+                                  <XMarkIcon className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   </div>
