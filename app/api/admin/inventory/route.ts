@@ -69,6 +69,10 @@ export async function GET(request: Request) {
         driverName: l.driverName || l.driver || "",
         driverId: l.driverId ? l.driverId.toString() : "",
         status: l.status || "pending",
+        movementType: l.movementType || (l.status === "delivered" ? "delivered" : "received"),
+        isBackdated: Boolean(l.isBackdated),
+        collectedAt: l.collectedAt || l.timestamp || l.createdAt || new Date(),
+        enteredAt: l.enteredAt || l.createdAt || new Date(),
         paymentStatus: l.paymentStatus || "pending",
         timestamp: l.timestamp || l.createdAt || new Date(),
         createdAt: l.createdAt || l.timestamp || new Date(),
@@ -128,9 +132,13 @@ export async function POST(request: Request) {
       driverName: body.driver || "",
       driverId: body.driverId || "",
       supplierId: body.supplierId || "",
+      movementType: body.movementType || (body.status === "delivered" ? "delivered" : "received"),
+      isBackdated: Boolean(body.isBackdated),
+      collectedAt: body.collectedAt ? new Date(body.collectedAt) : new Date(),
       status: body.status || "pending",
-      timestamp: new Date(),
-      createdAt: new Date(),
+      enteredAt: new Date(),
+      timestamp: body.collectedAt ? new Date(body.collectedAt) : new Date(),
+      createdAt: body.collectedAt ? new Date(body.collectedAt) : new Date(),
     };
 
     // 1. Insert the manifest into the central inventory tracking ledger
@@ -211,6 +219,17 @@ export async function PUT(request: Request) {
       status: body.status || "pending",
       updatedAt: new Date(),
     };
+
+    if (body.movementType) {
+      updateData.movementType = body.movementType;
+    }
+    if (body.isBackdated !== undefined) {
+      updateData.isBackdated = Boolean(body.isBackdated);
+    }
+    if (body.collectedAt) {
+      updateData.collectedAt = new Date(body.collectedAt);
+      updateData.timestamp = new Date(body.collectedAt);
+    }
 
     if (body.loadNumber) {
       updateData.loadNumber = body.loadNumber;

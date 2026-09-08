@@ -25,6 +25,9 @@ import {
   DocumentDuplicateIcon,
   ChevronDownIcon,
   MagnifyingGlassIcon,
+  CalendarDaysIcon,
+  ClockIcon,
+  TruckIcon,
 } from "@heroicons/react/24/outline";
 
 export interface SackGroup {
@@ -91,6 +94,17 @@ export function RapidWeighingSheet({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [newlyCreatedLoad, setNewlyCreatedLoad] = useState<any>(null);
+
+  // --- INVENTORY MOVEMENT & BACKLOG STATES ---
+  const [movementType, setMovementType] = useState<"received" | "delivered">("received");
+  const [isBackdated, setIsBackdated] = useState(false);
+  const getNowDateTimeString = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  };
+  const [collectedAt, setCollectedAt] = useState<string>(getNowDateTimeString());
+  const [backdateReason, setBackdateReason] = useState("");
 
   // --- MODALS ---
   const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
@@ -195,6 +209,10 @@ export function RapidWeighingSheet({
       setFieldNotes(draft.fieldNotes || "");
       setOverallPhotos(draft.overallPhotos || []);
       setGpsCoords(draft.gpsCoords || "");
+      if (draft.movementType) setMovementType(draft.movementType);
+      if (draft.isBackdated !== undefined) setIsBackdated(draft.isBackdated);
+      if (draft.collectedAt) setCollectedAt(draft.collectedAt);
+      if (draft.backdateReason) setBackdateReason(draft.backdateReason);
       setStage("weighing");
       setHasSavedDraft(false);
       toast.success("Draft collection restored successfully!");
@@ -220,6 +238,10 @@ export function RapidWeighingSheet({
           fieldNotes,
           overallPhotos,
           gpsCoords,
+          movementType,
+          isBackdated,
+          collectedAt,
+          backdateReason,
           savedAt: new Date().toISOString(),
         };
         localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
@@ -227,7 +249,7 @@ export function RapidWeighingSheet({
         // Storage full or restricted
       }
     }
-  }, [stage, selectedSupplierId, groups, activeGroupIndex, fieldNotes, overallPhotos, gpsCoords]);
+  }, [stage, selectedSupplierId, groups, activeGroupIndex, fieldNotes, overallPhotos, gpsCoords, movementType, isBackdated, collectedAt, backdateReason]);
 
   // Focus weight input when in weighing stage
   useEffect(() => {
@@ -569,6 +591,10 @@ export function RapidWeighingSheet({
         subCounty: selectedSupplier?.subCounty || "",
         landmark: selectedSupplier?.businessName || "",
         gps: gpsCoords || selectedSupplier?.gpsCoordinates || "",
+        movementType,
+        isBackdated,
+        collectedAt: isBackdated ? collectedAt : undefined,
+        backdateReason: isBackdated ? backdateReason : undefined,
       };
 
       const res = await fetch("/api/field-officer/loads", {
@@ -731,6 +757,148 @@ export function RapidWeighingSheet({
               </div>
             </div>
 
+            {/* Consignment Movement & Timing Card */}
+            <div className="bg-[#0b101d] rounded-2xl p-4 border border-white/10 space-y-3.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <TruckIcon className="w-4 h-4 text-emerald-400" />
+                  Consignment Movement & Timing
+                </span>
+                {isBackdated ? (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-black font-mono uppercase flex items-center gap-1">
+                    <CalendarDaysIcon className="w-3 h-3" /> Backlog Mode
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-black font-mono uppercase flex items-center gap-1">
+                    <ClockIcon className="w-3 h-3" /> Live Capture
+                  </span>
+                )}
+              </div>
+
+              {/* Movement Type: Received vs Delivered */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">
+                  Inventory Stage / Movement Type *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMovementType("received")}
+                    className={cn(
+                      "p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all",
+                      movementType === "received"
+                        ? "bg-teal-500/15 border-teal-400 text-white font-bold ring-1 ring-teal-400/40 shadow-lg shadow-teal-500/10"
+                        : "bg-[#131b2e] border-white/5 text-slate-400 hover:border-white/10"
+                    )}
+                  >
+                    <div className={cn(
+                      "h-8 w-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0",
+                      movementType === "received" ? "bg-teal-500 text-slate-950" : "bg-white/5 text-slate-400"
+                    )}>
+                      📥
+                    </div>
+                    <div>
+                      <div className="text-xs font-black">Received</div>
+                      <p className="text-[10px] text-slate-400 leading-tight">Supplier yard / intake</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMovementType("delivered")}
+                    className={cn(
+                      "p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all",
+                      movementType === "delivered"
+                        ? "bg-emerald-500/15 border-emerald-400 text-white font-bold ring-1 ring-emerald-400/40 shadow-lg shadow-emerald-500/10"
+                        : "bg-[#131b2e] border-white/5 text-slate-400 hover:border-white/10"
+                    )}
+                  >
+                    <div className={cn(
+                      "h-8 w-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0",
+                      movementType === "delivered" ? "bg-emerald-500 text-slate-950" : "bg-white/5 text-slate-400"
+                    )}>
+                      🚚
+                    </div>
+                    <div>
+                      <div className="text-xs font-black">Delivered</div>
+                      <p className="text-[10px] text-slate-400 leading-tight">Hub dropoff / delivery</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Entry Mode: Live vs Backdated */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">
+                  Collection Timing / Entry Mode *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsBackdated(false)}
+                    className={cn(
+                      "py-2.5 px-3 rounded-xl border text-center transition-all text-xs font-bold flex items-center justify-center gap-1.5",
+                      !isBackdated
+                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 font-black shadow-sm"
+                        : "bg-[#131b2e] border-white/5 text-slate-400 hover:border-white/10"
+                    )}
+                  >
+                    <ClockIcon className="w-4 h-4" />
+                    Live Shift (Now)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsBackdated(true)}
+                    className={cn(
+                      "py-2.5 px-3 rounded-xl border text-center transition-all text-xs font-bold flex items-center justify-center gap-1.5",
+                      isBackdated
+                        ? "bg-amber-500/20 border-amber-500 text-amber-300 font-black shadow-sm"
+                        : "bg-[#131b2e] border-white/5 text-slate-400 hover:border-white/10"
+                    )}
+                  >
+                    <CalendarDaysIcon className="w-4 h-4" />
+                    Historical Backlog
+                  </button>
+                </div>
+
+                {/* Historical Date & Reason Fields */}
+                {isBackdated && (
+                  <div className="mt-3 p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-2.5 animate-in fade-in slide-in-from-top-2">
+                    <div>
+                      <label className="block text-[11px] font-black text-amber-300 mb-1">
+                        Historical Collection Date & Time *
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={collectedAt}
+                        max={getNowDateTimeString()}
+                        onChange={(e) => setCollectedAt(e.target.value)}
+                        className="w-full bg-[#131b2e] border border-amber-500/40 rounded-xl px-3.5 py-2 text-white text-xs font-mono focus:outline-none focus:border-amber-400 transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                        Backlog Origin / Reason Notes (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Offline tally sheet from previous week, delayed entry"
+                        value={backdateReason}
+                        onChange={(e) => setBackdateReason(e.target.value)}
+                        className="w-full bg-[#131b2e] border border-white/10 rounded-xl px-3 py-1.5 text-white text-[11px] placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                      />
+                    </div>
+
+                    <p className="text-[10px] text-amber-300/90 italic flex items-center gap-1">
+                      ℹ️ Record will be chronologically registered under this historical date in the inventory ledger.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Start Button */}
             <button
               type="button"
@@ -772,6 +940,45 @@ export function RapidWeighingSheet({
                 {collectionTotalSacks} Sacks • {collectionTotalWeightKg} KG
               </div>
             </div>
+          </div>
+
+          {/* Movement & Date Status Sub-bar */}
+          <div className="bg-[#090e1b] rounded-xl px-3 py-2 border border-white/5 flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setMovementType(prev => prev === "received" ? "delivered" : "received")}
+                className={cn(
+                  "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border transition-colors",
+                  movementType === "received"
+                    ? "bg-teal-500/15 text-teal-300 border-teal-500/40"
+                    : "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+                )}
+                title="Click to toggle between Received and Delivered"
+              >
+                {movementType === "received" ? "📥 Received at Yard" : "🚚 Direct Hub Delivery"}
+              </button>
+
+              {isBackdated ? (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-bold flex items-center gap-1">
+                  <CalendarDaysIcon className="w-3 h-3" />
+                  {new Date(collectedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-slate-850 text-slate-400 border border-white/5 text-[10px] font-mono font-medium flex items-center gap-1">
+                  <ClockIcon className="w-3 h-3 text-emerald-400" />
+                  Live Shift
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMovementType(prev => prev === "received" ? "delivered" : "received")}
+              className="text-[10px] text-slate-400 hover:text-white font-bold underline transition-colors shrink-0"
+            >
+              Toggle Stage
+            </button>
           </div>
 
           {/* Current Material & Grade Group Card */}
@@ -1111,6 +1318,103 @@ export function RapidWeighingSheet({
               </div>
             </div>
 
+            {/* Movement & Date Confirmation */}
+            <div className="bg-[#131b2e] rounded-xl p-3.5 border border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <TruckIcon className="w-4 h-4 text-emerald-400" />
+                  Movement & Timing Verification
+                </span>
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-black uppercase font-mono border",
+                  movementType === "received"
+                    ? "bg-teal-500/10 text-teal-400 border-teal-500/20"
+                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                )}>
+                  {movementType === "received" ? "📥 Received" : "🚚 Delivered"}
+                </span>
+              </div>
+
+              {/* Movement Toggle */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMovementType("received")}
+                  className={cn(
+                    "py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all",
+                    movementType === "received"
+                      ? "bg-teal-500/20 border-teal-500 text-teal-300 font-black"
+                      : "bg-[#0b101d] border-white/5 text-slate-400 hover:border-white/10"
+                  )}
+                >
+                  📥 Mark as Received
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMovementType("delivered")}
+                  className={cn(
+                    "py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all",
+                    movementType === "delivered"
+                      ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 font-black"
+                      : "bg-[#0b101d] border-white/5 text-slate-400 hover:border-white/10"
+                  )}
+                >
+                  🚚 Mark as Delivered
+                </button>
+              </div>
+
+              {/* Backlog Mode Toggle */}
+              <div className="pt-2 border-t border-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                    <CalendarDaysIcon className="w-3.5 h-3.5 text-amber-400" />
+                    Historical Backlog Record?
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsBackdated(!isBackdated)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-colors border",
+                      isBackdated
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                        : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+                    )}
+                  >
+                    {isBackdated ? "Yes, Backdated" : "No, Live Now"}
+                  </button>
+                </div>
+
+                {isBackdated && (
+                  <div className="space-y-2 p-2.5 rounded-lg bg-[#080d19] border border-amber-500/20 animate-in fade-in">
+                    <div>
+                      <span className="text-[10px] font-semibold text-amber-300 block mb-1">
+                        Weigh-in Date & Time
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={collectedAt}
+                        max={getNowDateTimeString()}
+                        onChange={(e) => setCollectedAt(e.target.value)}
+                        className="w-full bg-[#131b2e] border border-amber-500/40 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono focus:outline-none focus:border-amber-400 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 block mb-1">
+                        Backlog Reason / Source
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="e.g. Paper tally sheet from previous week"
+                        value={backdateReason}
+                        onChange={(e) => setBackdateReason(e.target.value)}
+                        className="w-full bg-[#131b2e] border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-[11px] placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* GPS & Location */}
             <div>
               <div className="flex justify-between items-center mb-1">
@@ -1194,6 +1498,36 @@ export function RapidWeighingSheet({
             <div className="flex justify-between items-center pb-2 border-b border-white/5">
               <span className="text-slate-400">Supplier:</span>
               <span className="font-bold text-white">{newlyCreatedLoad.supplierName || newlyCreatedLoad.supplier}</span>
+            </div>
+            <div className="flex justify-between items-center pb-2 border-b border-white/5">
+              <span className="text-slate-400">Movement Stage:</span>
+              <span className={cn(
+                "font-bold uppercase tracking-wider text-[11px] px-2 py-0.5 rounded-full border",
+                newlyCreatedLoad.movementType === "delivered" || newlyCreatedLoad.status === "delivered"
+                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                  : "bg-teal-500/15 text-teal-400 border-teal-500/30"
+              )}>
+                {newlyCreatedLoad.movementType === "delivered" || newlyCreatedLoad.status === "delivered"
+                  ? "🚚 Delivered (Hub Dropoff)"
+                  : "📥 Received (Yard Intake)"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pb-2 border-b border-white/5">
+              <span className="text-slate-400">Collection Date:</span>
+              <span className="font-medium text-white flex items-center gap-1">
+                {new Date(newlyCreatedLoad.collectedAt || newlyCreatedLoad.timestamp || newlyCreatedLoad.createdAt).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                {newlyCreatedLoad.isBackdated && (
+                  <span className="text-[9px] font-mono font-bold bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded ml-1 border border-amber-500/30">
+                    Backlog
+                  </span>
+                )}
+              </span>
             </div>
             <div className="flex justify-between items-center pb-2 border-b border-white/5">
               <span className="text-slate-400">Total Sacks:</span>

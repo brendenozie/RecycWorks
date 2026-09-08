@@ -71,6 +71,7 @@ export default function FieldOfficerDashboard() {
   // Loads State
   const [loads, setLoads] = useState<any[]>([]);
   const [loadingLoads, setLoadingLoads] = useState(false);
+  const [loadMovementFilter, setLoadMovementFilter] = useState<"all" | "received" | "delivered" | "backdated">("all");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -294,7 +295,7 @@ export default function FieldOfficerDashboard() {
     (s) => new Date(s.createdAt).toDateString() === todayDateStr
   );
   const loadsToday = loads.filter(
-    (l) => new Date(l.createdAt || l.timestamp).toDateString() === todayDateStr
+    (l) => new Date(l.enteredAt || l.createdAt || l.timestamp).toDateString() === todayDateStr
   );
   const totalWeightTodayKg = loadsToday.reduce(
     (sum, l) => sum + (Number(l.normalizedWeightKg) || 0),
@@ -765,6 +766,47 @@ export default function FieldOfficerDashboard() {
               </button>
             </div>
 
+            {/* Movement & Timing Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs font-bold">
+              {[
+                { key: "all", label: `All Loads (${loads.length})` },
+                {
+                  key: "received",
+                  label: `📥 Received (${
+                    loads.filter(
+                      (l) => l.movementType === "received" || (!l.movementType && l.status !== "delivered")
+                    ).length
+                  })`,
+                },
+                {
+                  key: "delivered",
+                  label: `🚚 Delivered (${
+                    loads.filter(
+                      (l) => l.movementType === "delivered" || l.status === "delivered"
+                    ).length
+                  })`,
+                },
+                {
+                  key: "backdated",
+                  label: `📅 Backdated (${loads.filter((l) => Boolean(l.isBackdated)).length})`,
+                },
+              ].map((pill) => (
+                <button
+                  key={pill.key}
+                  type="button"
+                  onClick={() => setLoadMovementFilter(pill.key as any)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl whitespace-nowrap transition-all border text-[11px]",
+                    loadMovementFilter === pill.key
+                      ? "bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-sm"
+                      : "bg-[#0c1222] border-white/5 text-slate-400 hover:text-white hover:border-white/10"
+                  )}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+
             {loads.length === 0 ? (
               <div className="bg-[#0c1222] border border-dashed border-white/10 rounded-2xl p-8 text-center text-slate-400 text-xs space-y-3">
                 <ArchiveBoxIcon className="w-8 h-8 text-slate-500 mx-auto" />
@@ -778,73 +820,135 @@ export default function FieldOfficerDashboard() {
               </div>
             ) : (
               <div className="space-y-2.5">
-                {loads.map((load) => (
-                  <div
-                    key={load._id || load.id}
-                    className="bg-[#0c1222] border border-white/10 rounded-xl p-3.5 space-y-2 hover:border-emerald-500/40 transition-colors"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs font-black text-emerald-400">
-                            {load.loadNumber || load._id}
-                          </span>
-                          <span className="text-xs font-bold text-white">{load.material || load.name}</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400">
-                          Supplier: <span className="text-white font-medium">{load.supplier}</span>
-                        </p>
-                      </div>
+                {loads
+                  .filter((load) => {
+                    if (loadMovementFilter === "received") {
+                      return load.movementType === "received" || (!load.movementType && load.status !== "delivered");
+                    }
+                    if (loadMovementFilter === "delivered") {
+                      return load.movementType === "delivered" || load.status === "delivered";
+                    }
+                    if (loadMovementFilter === "backdated") {
+                      return Boolean(load.isBackdated);
+                    }
+                    return true;
+                  })
+                  .map((load) => {
+                    const isDelivered = load.movementType === "delivered" || load.status === "delivered";
+                    const collectionDate = load.collectedAt || load.timestamp || load.createdAt;
 
-                      <span
-                        className={cn(
-                          "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border",
-                          load.status === "delivered" || load.status === "paid"
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : load.status === "in-transit"
-                              ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                              : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                        )}
+                    return (
+                      <div
+                        key={load._id || load.id}
+                        className="bg-[#0c1222] border border-white/10 rounded-xl p-3.5 space-y-2 hover:border-emerald-500/40 transition-colors"
                       >
-                        {load.status || "captured"}
-                      </span>
-                    </div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono text-xs font-black text-emerald-400">
+                                {load.loadNumber || load._id}
+                              </span>
+                              <span className="text-xs font-bold text-white">{load.material || load.name}</span>
+                              
+                              {/* Movement Indicator Badge */}
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border",
+                                  isDelivered
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
+                                    : "bg-teal-500/10 text-teal-400 border-teal-500/25"
+                                )}
+                              >
+                                {isDelivered ? "🚚 Delivered" : "📥 Received"}
+                              </span>
 
-                    <div className="flex justify-between items-center text-[11px] pt-1 border-t border-white/5 text-slate-400">
-                      <span>
-                        Grade: {load.grade}
-                        {load.totalSacks ? (
-                          <span className="ml-2 font-mono font-bold text-emerald-400">
-                            • {load.totalSacks} sacks
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="font-bold text-white">
-                        {load.weight || `${load.quantity} ${load.unit || "KG"}`}
-                      </span>
-                    </div>
+                              {/* Backdated Flag Badge */}
+                              {load.isBackdated && (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[9px] font-black font-mono uppercase">
+                                  ⏳ Backdated
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Supplier: <span className="text-white font-medium">{load.supplier || load.supplierName}</span>
+                            </p>
+                          </div>
 
-                    {load.items && Array.isArray(load.items) && load.items.length > 1 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {load.items.map((it: any, i: number) => (
                           <span
-                            key={i}
-                            className="px-2 py-0.5 rounded bg-white/5 text-[10px] text-slate-300 font-mono"
+                            className={cn(
+                              "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shrink-0",
+                              load.status === "delivered" || load.status === "paid"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : load.status === "in-transit"
+                                  ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                  : load.status === "received"
+                                    ? "bg-teal-500/10 text-teal-400 border-teal-500/20"
+                                    : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                            )}
                           >
-                            {it.material} ({it.grade}): {it.totalWeightKg || it.sacks?.reduce((a: any, b: any) => a + b, 0)} kg ({it.sackCount || it.sacks?.length} sacks)
+                            {load.status || "captured"}
                           </span>
-                        ))}
-                      </div>
-                    )}
+                        </div>
 
-                    {load.grossValueKes > 0 && (
-                      <div className="flex justify-between items-center text-[11px] font-bold text-emerald-400">
-                        <span>Load Value:</span>
-                        <span>KES {load.grossValueKes.toLocaleString()}</span>
+                        {/* Timing & Date Line */}
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono bg-[#131b2e]/60 px-2.5 py-1 rounded-lg">
+                          <span>
+                            Collected:{" "}
+                            <span className="text-slate-200 font-semibold">
+                              {collectionDate
+                                ? new Date(collectionDate).toLocaleDateString("en-GB", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "N/A"}
+                            </span>
+                          </span>
+                          {load.isBackdated && load.enteredAt && (
+                            <span className="text-slate-500">
+                              Entered: {new Date(load.enteredAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px] pt-1 border-t border-white/5 text-slate-400">
+                          <span>
+                            Grade: {load.grade}
+                            {load.totalSacks ? (
+                              <span className="ml-2 font-mono font-bold text-emerald-400">
+                                • {load.totalSacks} sacks
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="font-bold text-white font-mono">
+                            {load.weight || `${load.quantity} ${load.unit || "KG"}`}
+                          </span>
+                        </div>
+
+                        {load.items && Array.isArray(load.items) && load.items.length > 1 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {load.items.map((it: any, i: number) => (
+                              <span
+                                key={i}
+                                className="px-2 py-0.5 rounded bg-white/5 text-[10px] text-slate-300 font-mono"
+                              >
+                                {it.material} ({it.grade}): {it.totalWeightKg || it.sacks?.reduce((a: any, b: any) => a + b, 0)} kg ({it.sackCount || it.sacks?.length} sacks)
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {load.grossValueKes > 0 && (
+                          <div className="flex justify-between items-center text-[11px] font-bold text-emerald-400">
+                            <span>Load Value:</span>
+                            <span className="font-mono">KES {load.grossValueKes.toLocaleString()}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
+                    );
+                  })}
               </div>
             )}
           </div>

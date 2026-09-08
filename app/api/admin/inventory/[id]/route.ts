@@ -54,6 +54,17 @@ export async function PUT(
       updatedAt: new Date(),
     };
 
+    if (body.movementType) {
+      updateData.movementType = body.movementType;
+    }
+    if (body.isBackdated !== undefined) {
+      updateData.isBackdated = Boolean(body.isBackdated);
+    }
+    if (body.collectedAt) {
+      updateData.collectedAt = new Date(body.collectedAt);
+      updateData.timestamp = new Date(body.collectedAt);
+    }
+
     if (body.loadNumber) {
       updateData.loadNumber = body.loadNumber;
     }

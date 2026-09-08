@@ -50,7 +50,11 @@ export type Material = {
   driver: string;
   driverName?: string;
   driverId: string;
-  status: 'pending' | 'in-transit' | 'needs-review' | 'in-stock' | 'transit-requested' | "dispatched" | "delivered" | "archived";
+  movementType?: "received" | "delivered";
+  isBackdated?: boolean;
+  collectedAt?: string | Date;
+  enteredAt?: string | Date;
+  status: 'pending' | 'in-transit' | 'needs-review' | 'in-stock' | 'transit-requested' | "dispatched" | "delivered" | "received" | "captured" | "archived";
   paymentStatus?: string;
   createdAt?: string | Date;
   timestamp?: string | Date;
@@ -95,6 +99,9 @@ export function Inventory() {
   const [formDriver, setFormDriver] = useState("");
   const [formDriverId, setFormDriverId] = useState("");
   const [formStatus, setFormStatus] = useState<Material['status']>('pending');
+  const [formMovementType, setFormMovementType] = useState<"received" | "delivered">("received");
+  const [formIsBackdated, setFormIsBackdated] = useState(false);
+  const [formCollectedAt, setFormCollectedAt] = useState("");
 
   const activeCategoryNode = useMemo(() => {
     return categories.find(cat => cat.name === formName);
@@ -171,6 +178,15 @@ export function Inventory() {
       setFormDriver(editingItem.driver || editingItem.driverName || "");
       setFormDriverId(editingItem.driverId || "");
       setFormStatus(editingItem.status || 'pending');
+      setFormMovementType(editingItem.movementType || (editingItem.status === 'delivered' ? 'delivered' : 'received'));
+      setFormIsBackdated(Boolean(editingItem.isBackdated));
+      setFormCollectedAt(
+        editingItem.collectedAt
+          ? new Date(editingItem.collectedAt).toISOString().slice(0, 16)
+          : editingItem.timestamp
+          ? new Date(editingItem.timestamp).toISOString().slice(0, 16)
+          : ""
+      );
     } else {
       clearFormFields();
     }
@@ -181,6 +197,8 @@ export function Inventory() {
     const statusKey = item?.status || 'pending';
     
     switch (statusKey) {
+      case 'received':
+        return { label: "Received", color: "text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-500/20 bg-teal-50 dark:bg-teal-500/10", icon: CheckCircleIcon };
       case 'in-transit':
         return { label: "In Transit", color: "text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10", icon: TruckIcon };
       case 'needs-review':
@@ -192,7 +210,9 @@ export function Inventory() {
       case 'dispatched':
         return { label: "Dispatched", color: "text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10", icon: TruckIcon };
       case 'delivered':
-        return { label: "Delivered", color: "text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10", icon: CheckCircleIcon };
+        return { label: "Delivered", color: "text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10", icon: CheckCircleIcon };
+      case 'captured':
+        return { label: "Captured", color: "text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-500/20 bg-cyan-50 dark:bg-cyan-500/10", icon: ArchiveBoxIcon };
       case 'archived':
         return { label: "Archived", color: "text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-500/20 bg-gray-50 dark:bg-gray-500/10", icon: ArchiveBoxIcon };
       default:
@@ -243,6 +263,9 @@ export function Inventory() {
       driver: formDriver,
       driverName: formDriver,
       driverId: formDriverId,
+      movementType: formMovementType,
+      isBackdated: formIsBackdated,
+      collectedAt: formIsBackdated && formCollectedAt ? new Date(formCollectedAt) : undefined,
       status: finalStatus
     };
 
@@ -318,6 +341,9 @@ export function Inventory() {
     setFormDriver("");
     setFormDriverId("");
     setFormStatus("pending");
+    setFormMovementType("received");
+    setFormIsBackdated(false);
+    setFormCollectedAt("");
   };
 
   const filteredItems = useMemo(() => {
@@ -626,6 +652,74 @@ export function Inventory() {
                   </select>
                 </div>
 
+                {/* MOVEMENT TYPE (RECEIVED VS DELIVERED) */}
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02] space-y-2">
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Inventory Stage / Movement Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormMovementType("received")}
+                      className={cn(
+                        "py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all",
+                        formMovementType === "received"
+                          ? "bg-teal-500/20 border-teal-500 text-teal-600 dark:text-teal-400 font-black"
+                          : "bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300"
+                      )}
+                    >
+                      📥 Received (Intake)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormMovementType("delivered")}
+                      className={cn(
+                        "py-2 px-3 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all",
+                        formMovementType === "delivered"
+                          ? "bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-black"
+                          : "bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300"
+                      )}
+                    >
+                      🚚 Delivered (Dropoff)
+                    </button>
+                  </div>
+                </div>
+
+                {/* HISTORICAL BACKLOG ENTRY TOGGLE */}
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <ClockIcon className="w-3.5 h-3.5 text-amber-500" /> Historical / Backdated Record?
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setFormIsBackdated(!formIsBackdated)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-colors border",
+                        formIsBackdated
+                          ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40"
+                          : "bg-white dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10"
+                      )}
+                    >
+                      {formIsBackdated ? "Yes, Backdated" : "No, Live"}
+                    </button>
+                  </div>
+
+                  {formIsBackdated && (
+                    <div className="pt-1.5 animate-in fade-in">
+                      <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                        Historical Date & Time
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formCollectedAt}
+                        onChange={(e) => setFormCollectedAt(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-amber-500/40 rounded-xl p-2 text-xs font-mono outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 {/* STATUS */}
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Transit / Storage Status</label>
@@ -871,16 +965,40 @@ export function Inventory() {
                       {/* MATERIAL & LOAD */}
                       <td className="p-4 pl-6">
                         <div>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-bold text-sm text-slate-900 dark:text-white">{item.name}</p>
                             {item.loadNumber && (
                               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                 {item.loadNumber}
                               </span>
                             )}
+
+                            {/* Movement Type Badge */}
+                            <span
+                              className={cn(
+                                "text-[9px] font-bold px-1.5 py-0.5 rounded-full border uppercase tracking-wider",
+                                item.movementType === "delivered" || item.status === "delivered"
+                                  ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20"
+                                  : "bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-500/20"
+                              )}
+                            >
+                              {item.movementType === "delivered" || item.status === "delivered" ? "🚚 Delivered" : "📥 Received"}
+                            </span>
+
+                            {/* Backdated Tag */}
+                            {item.isBackdated && (
+                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                                ⏳ Backdated
+                              </span>
+                            )}
                           </div>
                           <p className="text-[11px] font-mono text-slate-400 tracking-tight mt-0.5">
                             Grade: <span className="font-semibold text-slate-600 dark:text-slate-300">{item.grade}</span>
+                            {(item.collectedAt || item.timestamp) && (
+                              <span className="ml-2 text-[10px] text-slate-400 font-normal">
+                                • {new Date(item.collectedAt || item.timestamp || "").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                            )}
                           </p>
                           {item.notes && (
                             <p className="text-[10px] text-slate-400 italic truncate max-w-xs mt-0.5">

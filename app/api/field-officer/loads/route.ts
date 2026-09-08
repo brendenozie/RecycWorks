@@ -63,6 +63,11 @@ export async function POST(request: NextRequest) {
       gps,
       groups,
       items,
+      isBackdated,
+      collectedAt,
+      movementType,
+      status,
+      backdateReason,
     } = body;
 
     if (!supplierId) {
@@ -82,6 +87,22 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Resolve movement type: "received" (intake at supplier/collection point) vs "delivered" (delivered at regional hub)
+    const effectiveMovementType: "received" | "delivered" =
+      movementType === "delivered" || status === "delivered" ? "delivered" : "received";
+
+    // Handle historical / backdated timestamps
+    const isHistorical = Boolean(isBackdated && collectedAt);
+    const parsedCollectedDate = collectedAt ? new Date(collectedAt) : null;
+    const recordDate =
+      isHistorical && parsedCollectedDate && !isNaN(parsedCollectedDate.getTime())
+        ? parsedCollectedDate
+        : new Date();
+    const systemNow = new Date();
+
+    const loadStatus =
+      status || (effectiveMovementType === "delivered" ? "delivered" : "received");
 
     // Resolve supplier details
     let supplierRecord = null;
@@ -155,7 +176,11 @@ export async function POST(request: NextRequest) {
         driverId: "",
         hubId,
         hubName,
-        status: "captured", // captured -> assigned -> in-transit -> delivered -> verified -> valued -> payment_pending -> paid
+        movementType: effectiveMovementType,
+        isBackdated: isHistorical,
+        collectedAt: recordDate,
+        backdateReason: isHistorical ? (backdateReason || notes || "Historical backlog record") : null,
+        status: loadStatus,
         pickupLocation: {
           county: county || supplierRecord?.county || "Nairobi",
           subCounty: subCounty || supplierRecord?.subCounty || "",
@@ -166,9 +191,10 @@ export async function POST(request: NextRequest) {
         notes: notes || "",
         paymentStatus: "pending",
         paymentReference: null,
-        timestamp: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        timestamp: recordDate,
+        createdAt: recordDate,
+        enteredAt: systemNow,
+        updatedAt: systemNow,
       };
     } else {
       // Legacy single material/grade calculation
@@ -214,7 +240,11 @@ export async function POST(request: NextRequest) {
         driverId: "",
         hubId,
         hubName,
-        status: "captured",
+        movementType: effectiveMovementType,
+        isBackdated: isHistorical,
+        collectedAt: recordDate,
+        backdateReason: isHistorical ? (backdateReason || notes || "Historical backlog record") : null,
+        status: loadStatus,
         pickupLocation: {
           county: county || supplierRecord?.county || "Nairobi",
           subCounty: subCounty || supplierRecord?.subCounty || "",
@@ -225,9 +255,10 @@ export async function POST(request: NextRequest) {
         notes: notes || "",
         paymentStatus: "pending",
         paymentReference: null,
-        timestamp: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        timestamp: recordDate,
+        createdAt: recordDate,
+        enteredAt: systemNow,
+        updatedAt: systemNow,
       };
     }
 
@@ -261,13 +292,16 @@ export async function POST(request: NextRequest) {
         loadNumber,
         material: newLoad.material,
         grade: newLoad.grade,
+        movementType: effectiveMovementType,
+        isBackdated: isHistorical,
+        collectedAt: recordDate.toISOString(),
         totalSacks: newLoad.totalSacks,
         normalizedWeightKg: newLoad.normalizedWeightKg,
         grossValueKes: newLoad.grossValueKes,
         supplierName,
         itemsCount: newLoad.items?.length || 1,
       },
-      timestamp: new Date(),
+      timestamp: systemNow,
     });
 
     return NextResponse.json(
