@@ -1,0 +1,1461 @@
+openapi: 3.0.3
+info:
+  title: RecycWorks Rapid Field Weighing & Load Capture API
+  description: >
+    Authoritative RESTful API for Recyc Works collection management, rapid field sack weighing,
+    material stream governance, multi-grade pricing snapshots, driver logistics, and hub scale receiving.
+  version: 1.0.0
+  contact:
+    name: RecycWorks Engineering
+    email: engineering@recycworks.ke
+servers:
+  - url: /api/v1
+    description: Production v1 Endpoint Root
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter the JWT authentication token provided by the session or login endpoint.
+
+  schemas:
+    ApiError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+            - requestId
+          properties:
+            code:
+              type: string
+              example: COLLECTION_NOT_EDITABLE
+            message:
+              type: string
+              example: This collection has already been finalized.
+            field:
+              type: string
+              nullable: true
+              example: weightKg
+            requestId:
+              type: string
+              example: req_1725792000_abc123
+
+    CollectionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 6a9fe6f7c114184ebd457ba7
+        loadNumber:
+          type: string
+          example: RWL-2026-489123
+        status:
+          type: string
+          enum: [CAPTURING, READY_FOR_COLLECTION, ASSIGNED, ARRIVED, IN_TRANSIT, DELIVERED, VERIFIED, CANCELLED]
+          example: CAPTURING
+        supplier:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+              example: ABC Aggregators
+        hubId:
+          type: string
+          nullable: true
+        totalSackCount:
+          type: integer
+          example: 12
+        totalWeightKg:
+          type: string
+          example: "590.000"
+        totalEstimatedValue:
+          type: string
+          example: "20844.00"
+        groupCount:
+          type: integer
+          example: 3
+        createdAt:
+          type: string
+          format: date-time
+
+    CollectionDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        loadNumber:
+          type: string
+        status:
+          type: string
+        supplier:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionGroup'
+        totalSackCount:
+          type: integer
+        totalWeightKg:
+          type: string
+          example: "590.000"
+        totalValue:
+          type: string
+          example: "20844.00"
+        startedAt:
+          type: string
+          format: date-time
+        finalizedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CollectionGroup:
+      type: object
+      properties:
+        id:
+          type: string
+          example: grp_1725792010_x9a2
+        material:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+              example: Polypropylene (PP)
+        grade:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+              example: Injection Grade (Chairs, Basins)
+        sackCount:
+          type: integer
+          example: 5
+        totalWeightKg:
+          type: string
+          example: "250.000"
+        unitPriceSnapshot:
+          type: string
+          example: "36.00"
+        calculatedValue:
+          type: string
+          example: "9000.00"
+
+    SackWeightEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          example: w_1725792015_4a8b
+        sequenceNumber:
+          type: integer
+          example: 1
+        weightKg:
+          type: string
+          example: "48.500"
+        capturedAt:
+          type: string
+          format: date-time
+
+security:
+  - BearerAuth: []
+
+paths:
+  /collections:
+    get:
+      summary: List Collections
+      description: Retrieves a list of collections. Data isolation ensures suppliers see only their own loads.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: mine
+          in: query
+          schema:
+            type: boolean
+      responses:
+        200:
+          description: List of collection summaries.
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create Draft Collection
+      description: Initiates a new collection in CAPTURING status. The authenticated Field Officer is stamped server-side.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - supplierId
+              properties:
+                supplierId:
+                  type: string
+                hubId:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        201:
+          description: Collection created.
+        422:
+          description: Validation error.
+
+  /collections/{id}:
+    get:
+      summary: Get Collection Detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Collection detail with groups and totals.
+        403:
+          description: Forbidden (Supplier data isolation violation).
+        404:
+          description: Collection not found.
+
+    delete:
+      summary: Cancel Collection
+      description: Cancels collection if it is not yet finalized.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Collection cancelled.
+        409:
+          description: Collection not cancellable.
+
+  /collections/{id}/groups:
+    post:
+      summary: Add or Resume Stream Group
+      description: Adds a material + grade group or resumes an existing matching group.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - material
+                - grade
+              properties:
+                material:
+                  type: string
+                  example: PP
+                grade:
+                  type: string
+                  example: Grade A
+      responses:
+        200:
+          description: Group resumed.
+        201:
+          description: Group created.
+        409:
+          description: Collection not editable.
+
+  /collections/{id}/groups/{groupId}/weights:
+    get:
+      summary: List Sack Weights for Group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of sack weights with sequences.
+
+    post:
+      summary: Add Sack Weight
+      description: Atomically appends a sack weight to a group and recalculates group + collection totals. Supports Idempotency-Key.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - weightKg
+              properties:
+                weightKg:
+                  type: number
+                  example: 48.5
+      responses:
+        201:
+          description: Sack weight appended and totals updated.
+        422:
+          description: Invalid weight.
+
+  /collections/{id}/groups/{groupId}/weights/{weightId}:
+    patch:
+      summary: Edit Sack Weight
+      description: Edits sack weight before collection finalization.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: weightId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - weightKg
+              properties:
+                weightKg:
+                  type: number
+                  example: 50.0
+      responses:
+        200:
+          description: Weight updated and totals recalculated.
+        403:
+          description: Forbidden (Collection is finalized).
+
+    delete:
+      summary: Delete Sack Weight
+      description: Removes sack weight before collection finalization.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: weightId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Weight deleted and totals recalculated.
+        403:
+          description: Forbidden (Collection is finalized).
+
+  /collections/{id}/finalize:
+    post:
+      summary: Finalize Collection
+      description: >
+        Server-side authoritative valuation, price snapshots, and transition to READY_FOR_COLLECTION.
+        Validates all groups have weights.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - confirmed
+              properties:
+                confirmed:
+                  type: boolean
+                  example: true
+      responses:
+        200:
+          description: Collection finalized with locked values.
+        409:
+          description: Collection not in finalizable state.
+        422:
+          description: Empty collection or groups without weights.
+
+  /collections/{id}/hub:
+    patch:
+      summary: Assign Destination Hub
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - hubId
+              properties:
+                hubId:
+                  type: string
+      responses:
+        200:
+          description: Hub assigned.
+
+  /collections/{id}/assign-driver:
+    post:
+      summary: Assign Driver
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - driverId
+              properties:
+                driverId:
+                  type: string
+                vehiclePlate:
+                  type: string
+      responses:
+        200:
+          description: Driver assigned.
+
+  /collections/{id}/arrive:
+    post:
+      summary: Driver Log Arrival
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Arrival logged.
+
+  /collections/{id}/collect:
+    post:
+      summary: Driver Cargo Collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                proofPhoto:
+                  type: string
+      responses:
+        200:
+          description: Cargo in transit.
+
+  /collections/{id}/deliver:
+    post:
+      summary: Driver Cargo Delivery
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Cargo delivered.
+
+  /collections/{id}/complete:
+    post:
+      summary: Hub Verification & Complete
+      description: Operations records verified scale weight and discrepancy without overwriting original capture.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - scaleWeightKg
+              properties:
+                scaleWeightKg:
+                  type: number
+                  example: 588.5
+      responses:
+        200:
+          description: Scale verified and collection completed.
+
+  /materials:
+    get:
+      summary: List Active Materials
+      parameters:
+        - name: active
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        200:
+          description: List of active materials.
+
+    post:
+      summary: Create Material (Admin Only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                group:
+                  type: string
+                grades:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        201:
+          description: Material created.
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /materials/{id}/grades:
+    get:
+      summary: Get Grades for Material
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of grades for material.
+
+  /pricing:
+    get:
+      summary: List Pricing Benchmarks
+      responses:
+        200:
+          description: Active pricing benchmarks.
+
+    post:
+      summary: Set Benchmark Price (Admin Only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - material
+                - grade
+                - pricePerKg
+              properties:
+                material:
+                  type: string
+                grade:
+                  type: string
+                pricePerKg:
+                  type: number
+                  example: 45.0
+      responses:
+        201:
+          description: Price benchmark defined.
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /pricing/resolve:
+    get:
+      summary: Authoritatively Resolve Price
+      parameters:
+        - name: material
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: grade
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Resolved unit price.
+
+  /master-data-requests:
+    get:
+      summary: List Master Data Requests
+      responses:
+        200:
+          description: List of requests.
+
+    post:
+      summary: Submit Master Data Request (Field Officer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - materialName
+              properties:
+                type:
+                  type: string
+                  enum: [MATERIAL, GRADE]
+                materialName:
+                  type: string
+                gradeName:
+                  type: string
+                note:
+                  type: string
+      responses:
+        201:
+          description: Request submitted.
+
+  /master-data-requests/{id}/approve:
+    post:
+      summary: Approve Master Data Request (Admin Only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                benchmarkPriceKes:
+                  type: number
+                  example: 42.0
+      responses:
+        200:
+          description: Request approved and material/grade added.
+
+  /master-data-requests/{id}/reject:
+    post:
+      summary: Reject Master Data Request (Admin Only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Request rejected.
+
+  /suppliers:
+    get:
+      summary: List Suppliers
+      responses:
+        200:
+          description: List of suppliers.
+
+    post:
+      summary: Register Supplier
+      description: Field Officer or Admin onboards a supplier.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - phone
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                county:
+                  type: string
+                supplierType:
+                  type: string
+      responses:
+        201:
+          description: Supplier registered.
+
+  /suppliers/{id}:
+    get:
+      summary: Get Supplier Profile
+      description: Returns supplier profile. Strict ownership isolation prevents suppliers from reading other suppliers.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Supplier profile.
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/dispatch:
+    get:
+      summary: Admin Dispatch Console
+      description: Returns ready collections, available drivers with shift status, fleet vehicles, and destination hubs.
+      responses:
+        200:
+          description: Dispatch console data.
+
+  /admin/dashboard:
+    get:
+      summary: Operations Command Center Dashboard
+      description: Aggregates operational KPIs across collections, logistics, fleet, fuel, and supplier disbursements.
+      responses:
+        200:
+          description: Operational KPIs and pipeline distribution.
+
+  /collections/{id}/dispatch:
+    post:
+      summary: Dispatch Collection Pickup
+      description: Assigns Driver, Fleet Vehicle, and Destination Hub to a collection and updates status to ASSIGNED.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - driverId
+              properties:
+                driverId:
+                  type: string
+                vehiclePlate:
+                  type: string
+                hubId:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Collection dispatched.
+
+  /collections/{id}/payment:
+    get:
+      summary: Get Collection Payment Details
+      description: Authoritative supplier payable amount, payment status, and disbursement history.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Payment details and history.
+
+  /collections/{id}/payment/approve:
+    post:
+      summary: Approve Supplier Payment
+      description: Admin or Accounts approves collection payable amount for disbursement.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Payment approved.
+
+  /collections/{id}/payment/cash:
+    post:
+      summary: Settle Supplier Payment via Cash
+      description: Records cash payment with official receipt number and notes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - receiptNumber
+              properties:
+                receiptNumber:
+                  type: string
+                amount:
+                  type: number
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Cash payment recorded.
+
+  /collections/{id}/payment/manual-mpesa:
+    post:
+      summary: Settle Supplier Payment via Manual M-Pesa
+      description: Records manual M-Pesa transaction reference code and phone number.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mpesaReference
+              properties:
+                mpesaReference:
+                  type: string
+                phoneNumber:
+                  type: string
+                amount:
+                  type: number
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Manual M-Pesa payment recorded.
+
+  /collections/{id}/payment/mpesa:
+    post:
+      summary: Execute Automated M-Pesa B2C Payout
+      description: Triggers automated M-Pesa payout to supplier phone number with Idempotency Key protection.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phoneNumber:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        200:
+          description: M-Pesa payout executed or idempotent replay returned.
+
+  /driver/shifts:
+    get:
+      summary: List Driver Shifts
+      parameters:
+        - name: driverId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of driver shifts.
+
+  /driver/shifts/start:
+    post:
+      summary: Start Driver Shift
+      description: Driver records starting odometer, vehicle plate, fuel level, and activates night travel evaluation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehiclePlate
+                - startOdometer
+              properties:
+                vehiclePlate:
+                  type: string
+                startOdometer:
+                  type: number
+                startFuelPercent:
+                  type: number
+                notes:
+                  type: string
+      responses:
+        201:
+          description: Shift started.
+
+  /driver/shifts/current:
+    get:
+      summary: Get Current Active Shift
+      description: Returns active shift for the driver or null if off duty.
+      responses:
+        200:
+          description: Active shift status.
+
+  /driver/shifts/{id}/end:
+    post:
+      summary: End Driver Shift
+      description: Closes shift, records ending odometer, calculates distance traveled in KM, and evaluates night travel.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - endOdometer
+              properties:
+                endOdometer:
+                  type: number
+                endFuelPercent:
+                  type: number
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Shift completed.
+
+  /driver/fuel:
+    get:
+      summary: List Fuel Purchases
+      responses:
+        200:
+          description: List of fuel purchase records.
+    post:
+      summary: Log Fuel Purchase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehiclePlate
+                - litres
+                - amountKes
+              properties:
+                vehiclePlate:
+                  type: string
+                litres:
+                  type: number
+                amountKes:
+                  type: number
+                station:
+                  type: string
+                odometer:
+                  type: number
+                receiptPhoto:
+                  type: string
+      responses:
+        201:
+          description: Fuel purchase recorded.
+
+  /depot/incoming:
+    get:
+      summary: Incoming Depot Loads
+      description: Lists loads en route or delivered at depot awaiting receiving confirmation.
+      parameters:
+        - name: hubId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of incoming and received loads.
+
+  /collections/{id}/receive:
+    post:
+      summary: Confirm Depot Receipt & Weight Verification
+      description: Offloads load at depot, verifies scale reading, creates RAW inventory lot, and records RECEIPT movement.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                receivedWeightKg:
+                  type: number
+                condition:
+                  type: string
+                notes:
+                  type: string
+                photo:
+                  type: string
+                sortingRequired:
+                  type: boolean
+                discrepancyReason:
+                  type: string
+      responses:
+        200:
+          description: Load received at depot and entered into raw inventory lot.
+
+  /inventory/lots:
+    get:
+      summary: Query Authoritative Inventory Lots
+      parameters:
+        - name: hubId
+          in: query
+          schema:
+            type: string
+        - name: material
+          in: query
+          schema:
+            type: string
+        - name: stage
+          in: query
+          schema:
+            type: string
+            enum: [RAW, SORTED, PROCESSED, FINISHED]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [AVAILABLE, RESERVED, DEPLETED]
+      responses:
+        200:
+          description: List of physical stock lots.
+
+  /inventory/movements:
+    get:
+      summary: Query Auditable Inventory Movement Ledger
+      parameters:
+        - name: lotId
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of inventory transaction movements.
+
+  /inventory/summary:
+    get:
+      summary: Aggregated Inventory Balances by Stage and Material
+      responses:
+        200:
+          description: Summary of physical stock balances.
+
+  /sorting:
+    get:
+      summary: List Sorting Work Orders
+      responses:
+        200:
+          description: List of sorting work orders.
+    post:
+      summary: Create Sorting Work Order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - inputMaterial
+                - inputQuantityKg
+              properties:
+                inputMaterial:
+                  type: string
+                inputQuantityKg:
+                  type: number
+                sourceLotIds:
+                  type: array
+                  items:
+                    type: string
+                assignedStaff:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        201:
+          description: Sorting work order created.
+
+  /sorting/{id}/start:
+    post:
+      summary: Start Sorting Work Order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Sorting order transitioned to IN_PROGRESS and stock consumed.
+
+  /sorting/{id}/complete:
+    post:
+      summary: Complete Sorting Work Order with Reconciliation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - outputs
+              properties:
+                outputs:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      material:
+                        type: string
+                      grade:
+                        type: string
+                      quantityKg:
+                        type: number
+                rejectQuantityKg:
+                  type: number
+                lossQuantityKg:
+                  type: number
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Sorting work order completed and SORTED lots created.
+
+  /processing:
+    get:
+      summary: List Processing Batches
+      responses:
+        200:
+          description: List of processing batches.
+    post:
+      summary: Create Processing Batch (Crushing/Pelletizing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - inputMaterial
+                - inputQuantityKg
+              properties:
+                processType:
+                  type: string
+                machineName:
+                  type: string
+                inputMaterial:
+                  type: string
+                inputQuantityKg:
+                  type: number
+                outputStockType:
+                  type: string
+      responses:
+        201:
+          description: Processing batch created.
+
+  /processing/{id}/start:
+    post:
+      summary: Start Processing Batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Batch started and input lots consumed.
+
+  /processing/{id}/complete:
+    post:
+      summary: Complete Processing Batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - outputs
+              properties:
+                outputs:
+                  type: array
+                  items:
+                    type: object
+                residueQuantityKg:
+                  type: number
+                processLossKg:
+                  type: number
+      responses:
+        200:
+          description: Processing batch completed and PROCESSED lots created.
+
+  /orders:
+    get:
+      summary: List B2B Customer Orders
+      responses:
+        200:
+          description: List of customer orders.
+    post:
+      summary: Create B2B Customer Order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customerName
+                - deliveryAddress
+                - material
+                - requiredQuantityKg
+                - unitPriceKes
+              properties:
+                customerName:
+                  type: string
+                deliveryAddress:
+                  type: string
+                material:
+                  type: string
+                grade:
+                  type: string
+                requiredQuantityKg:
+                  type: number
+                unitPriceKes:
+                  type: number
+      responses:
+        201:
+          description: Customer order created.
+
+  /orders/{id}/reserve:
+    post:
+      summary: Reserve Stock for Customer Order
+      description: Validates available inventory and reserves required KG without overselling.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Stock reserved.
+        422:
+          description: Insufficient stock with shortfall quantity.
+
+  /orders/{id}/dispatch:
+    post:
+      summary: Dispatch Outbound Delivery
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehiclePlate
+              properties:
+                vehiclePlate:
+                  type: string
+                driverId:
+                  type: string
+                driverName:
+                  type: string
+      responses:
+        200:
+          description: Order dispatched for outbound delivery.
+
+  /orders/{id}/deliver:
+    post:
+      summary: Confirm Customer Delivery
+      description: Outbound delivery completed with POD photo, inventory deduction, and OUTBOUND_DELIVERY movement.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                recipientName:
+                  type: string
+                proofOfDeliveryPhoto:
+                  type: string
+                deliveryNotes:
+                  type: string
+      responses:
+        200:
+          description: Customer delivery confirmed.
+
+  /traceability:
+    get:
+      summary: End-to-End Chain of Custody Lineage
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [load, lot, batch, order]
+      responses:
+        200:
+          description: Complete bidirectional lineage graph.
+
+  /admin/operations:
+    get:
+      summary: Master Operations Pipeline & Reconciliation Dashboard
+      responses:
+        200:
+          description: Today's operations metrics, 9-stage pipeline, and financial-physical reconciliation.
+
+components:
+  responses:
+    Unauthorized:
+      description: Unauthorized (missing or invalid JWT token).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: Forbidden (role unauthorized to access resource).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'

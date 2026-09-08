@@ -2,14 +2,14 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Truck, 
-  Scale, 
-  Cog, 
-  MapPin, 
-  Clock, 
-  Sparkles, 
-  CheckCircle2, 
+import {
+  Truck,
+  Scale,
+  Cog,
+  MapPin,
+  Clock,
+  Sparkles,
+  CheckCircle2,
   ArrowRight,
   ShieldCheck,
   Zap,
@@ -49,19 +49,19 @@ const INFRASTRUCTURE_CARDS: InfrastructureCard[] = [
     iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white",
     glowColor: "rgba(59, 130, 246, 0.15)",
     activeColor: "border-blue-500/50 shadow-blue-500/10",
-    title: "ISUZU FRR Dedicated Fleet",
+    title: " Dedicated Fleet",
     subtitle: "10-Ton Heavy Bulk Collection Haulers",
-    description: "Equipped with dedicated ISUZU FRR heavy haulers structured for multi-ton, high-density bulk site pickups across Kenya. Dedicated to clearing high-volume aggregator stockpiles with minimal lead time.",
+    description: "Equipped with dedicated  heavy haulers structured for multi-ton, high-density bulk site pickups across Kenya. Dedicated to clearing high-volume aggregator stockpiles with minimal lead time.",
     icon: Truck,
     highlights: [
-      "ISUZU FRR 10-Ton dedicated bulk haulers",
+      " 10-Ton dedicated bulk haulers",
       "Countywide dispatch & real-time GPS tracking",
       "Scheduled high-volume aggregator site clearance"
     ],
-    metric: { label: "Fleet Capacity", value: "ISUZU FRR" },
+    metric: { label: "Fleet Capacity", value: "" },
     metricBg: "bg-blue-50 text-blue-700 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/50",
     liveStats: [
-      { label: "Dedicated Haulers", val: "ISUZU FRR" },
+      { label: "Dedicated Haulers", val: "" },
       { label: "Dispatch Response", val: "< 2 Hours" }
     ]
   },
@@ -148,13 +148,13 @@ export function InfrastructureShowcase() {
         <div className="absolute top-1/3 -left-48 h-[500px] w-[500px] rounded-full bg-emerald-500/10 blur-[130px]" />
         <div className="absolute -bottom-20 -right-48 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-[140px]" />
         {/* Subtle grid lines */}
-        <div 
+        <div
           className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:36px_36px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"
         />
       </div>
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-        
+
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-8">
           <div className="max-w-3xl">
@@ -210,7 +210,7 @@ export function InfrastructureShowcase() {
         </div>
 
         {/* Infrastructure Cards Grid */}
-        <motion.div 
+        <motion.div
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
@@ -230,14 +230,13 @@ export function InfrastructureShowcase() {
                 onClick={() => setSelectedCard(card.id)}
                 whileHover={{ y: -6 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
-                className={`group relative flex flex-col justify-between rounded-3xl bg-white dark:bg-slate-900 border transition-all duration-300 overflow-hidden cursor-pointer p-7 lg:p-8 ${
-                  isSelected 
-                    ? `border-2 ${card.activeColor} shadow-xl dark:shadow-slate-900/50` 
+                className={`group relative flex flex-col justify-between rounded-3xl bg-white dark:bg-slate-900 border transition-all duration-300 overflow-hidden cursor-pointer p-7 lg:p-8 ${isSelected
+                    ? `border-2 ${card.activeColor} shadow-xl dark:shadow-slate-900/50`
                     : "border-slate-200/90 dark:border-slate-800 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-slate-950/60"
-                }`}
+                  }`}
               >
                 {/* Dynamic Hover Glow Overlay */}
-                <div 
+                <div
                   className="absolute -inset-px opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl pointer-events-none"
                   style={{
                     background: `radial-gradient(500px circle at top right, ${card.glowColor}, transparent 50%)`
@@ -251,7 +250,7 @@ export function InfrastructureShowcase() {
                       <Zap className="w-3 h-3" />
                       {card.badge}
                     </span>
-                    
+
                     <div className={`p-3.5 rounded-2xl transition-all duration-300 shadow-xs ${card.iconBg}`}>
                       <IconComponent className="w-6 h-6 transition-transform duration-300 group-hover:scale-110" />
                     </div>

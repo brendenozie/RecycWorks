@@ -79,6 +79,10 @@ export function generateToken(
   });
 }
 
+export function signToken(payload: any, options?: jwt.SignOptions): string {
+  return jwt.sign(payload, JWT_SECRET, options || { expiresIn: "7d" });
+}
+
 export function verifyToken(
   token: string,
 ): { userId: string; email: string; role: UserRole; isAdmin: boolean } | null {

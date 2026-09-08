@@ -61,13 +61,34 @@ export function SupplierOverview() {
           "Content-Type": "application/json"
         };
 
-        const [batchesRes, pickupsRes] = await Promise.all([
-          fetch(`/api/supplier/batches`, { headers }),
-          fetch(`/api/supplier/pickups`, { headers }) // Assuming you have a GET endpoint for pickups
+        const [collectionsRes, financeRes] = await Promise.all([
+          fetch(`/api/v1/collections`, { headers }).catch(() => null),
+          fetch(`/api/supplier/finance`, { headers }).catch(() => null),
         ]);
 
-        if (batchesRes.ok) setBatches(await batchesRes.json());
-        if (pickupsRes.ok) setPickups(await pickupsRes.json());
+        let colItems: any[] = [];
+        if (collectionsRes && collectionsRes.ok) {
+          const cData = await collectionsRes.json();
+          colItems = (cData.data?.items || cData.items || []).map((c: any) => ({
+            _id: c.id,
+            id: c.id,
+            loadNumber: c.loadNumber,
+            name: c.material || "Recyclables",
+            grade: c.grade || "Standard",
+            weight: `${c.totalWeightKg || 0} KG`,
+            rawWeight: Number(c.totalWeightKg || 0),
+            status: c.status || "CAPTURING",
+            value: Number(c.totalEstimatedValue?.replace(/[^\d.-]/g, "") || 0),
+            createdAt: c.createdAt,
+          }));
+          setBatches(colItems);
+        }
+
+        if (financeRes && financeRes.ok) {
+          const fData = await financeRes.json();
+          // Store real financial stats
+          setRealFinances(fData);
+        }
       } catch (error) {
         console.error("Failed to fetch overview data:", error);
       } finally {
@@ -78,27 +99,29 @@ export function SupplierOverview() {
     fetchDashboardData();
   }, [authLoading, user]);
 
+  const [realFinances, setRealFinances] = useState<{ balance: number; estimatedValue: number } | null>(null);
+
   // --- Dynamic Calculations ---
-  
   // 1. Parse weights safely
   const parseWeight = (weight: string | number) => {
     return parseFloat(String(weight).replace(/[^\d.-]/g, "")) || 0;
   };
 
-  // 2. On-Site Inventory (Only "Stored" batches)
-  const storedBatches = batches.filter(b => b.status === "Stored");
-  const inventoryWeight = storedBatches.reduce((acc, curr) => acc + parseWeight(curr.weight), 0);
+  // 2. On-Site Inventory (Collections captured/staged at yard)
+  const storedBatches = batches.filter(
+    (b) => b.status === "CAPTURING" || b.status === "READY_FOR_COLLECTION" || b.status === "DRAFT" || b.status === "captured"
+  );
+  const inventoryWeight = storedBatches.reduce((acc, curr) => acc + (curr.rawWeight || parseWeight(curr.weight)), 0);
 
-  // 3. Active Requests (Pickups not yet completed)
-  const activePickups = pickups.filter(p => p.status !== "Completed" && p.status !== "Delivered");
+  // 3. Active Requests (Pickups assigned, arrived, or in-transit to Hubs)
+  const activePickups = batches.filter(
+    (b) => b.status === "ASSIGNED" || b.status === "ARRIVED" || b.status === "IN_TRANSIT" || b.status === "in-transit"
+  );
 
-  // 4. Total Earnings (Mock calculation: assuming 50 KES per Kg of all non-stored batches, adjust to your actual logic)
-  const completedWeight = batches
-    .filter(b => b.status !== "Stored")
-    .reduce((acc, curr) => acc + parseWeight(curr.weight), 0);
-  const totalEarnings = batches.reduce((acc, curr) => acc + (curr.value || 0), 0) || (completedWeight * 50);
+  // 4. Total Real Earnings from Authoritative Payments Ledger
+  const totalEarnings = realFinances?.balance ?? batches.filter((b) => b.status === "PAID" || b.status === "paid").reduce((acc, curr) => acc + (curr.value || 0), 0);
 
-  // 5. Recent Transactions (Latest 5 batches)
+  // 5. Recent Transactions (Latest 5 collections)
   const recentTransactions = [...batches]
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
     .slice(0, 5);

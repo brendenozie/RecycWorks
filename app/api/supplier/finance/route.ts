@@ -4,62 +4,92 @@ import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  const db = await getDatabase();
-  const { searchParams } = new URL(request.url);
-  // const supplierId = searchParams.get("supplierId");
-
-    // 1. Authenticate via Bearer Token or Cookie
+  try {
+    const db = await getDatabase();
     const authHeader = request.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.substring(7)
-      : null;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
 
     if (!token) {
-      return NextResponse.json(
-        { error: "Authentication token missing" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Authentication token missing" }, { status: 401 });
     }
 
     const decoded = verifyToken(token);
-    if (!decoded || decoded.role !== "supplier") {
-      return NextResponse.json(
-        { error: "Unauthorized access: Suppliers only" },
-        { status: 403 },
-      );
+    if (!decoded) {
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
     }
-  
 
-  // 1. Current Market Rates (Mocked or from a 'rates' collection)
-  const rates: Record<string, number> = {
-    "PET Clear": 28,
-    "HDPE Opaque": 35,
-    PP: 22,
-  };
+    const { searchParams } = new URL(request.url);
+    const paramSupplierId = searchParams.get("supplierId");
 
-  // 2. Calculate "Pending" value from batches not yet paid
-  const pendingBatches = await db
-    .collection("batches")
-    .find({ supplierId: new ObjectId(decoded.userId),
-       status: { $in: ["Stored", "In-Transit"] } })
-    .toArray();
+    let targetSupplierId = decoded.userId;
+    // Allow admin/finance/accounts to inspect specific supplier
+    if (paramSupplierId && ["admin", "super_admin", "accounts", "finance"].includes(decoded.role)) {
+      targetSupplierId = paramSupplierId;
+    }
 
-  const estimatedValue = pendingBatches.reduce((acc, batch) => {
-    return acc + batch.weight * (rates[batch.material] || 15);
-  }, 0);
+    if (!targetSupplierId || targetSupplierId === "ALPHA_01") {
+      // Fallback to current authenticated user's ID
+      targetSupplierId = decoded.userId;
+    }
 
-  // 3. Fetch Wallet Balance & History
-  const wallet = await db.collection("wallets").findOne({ supplierId: new ObjectId(decoded.userId) });
-  const history = await db
-    .collection("transactions")
-    .find({ supplierId: new ObjectId(decoded.userId) })
-    .sort({ date: -1 })
-    .limit(5)
-    .toArray();
+    let supplierObjId: ObjectId | null = null;
+    if (ObjectId.isValid(targetSupplierId)) {
+      supplierObjId = new ObjectId(targetSupplierId);
+    }
 
-  return NextResponse.json({
-    balance: wallet?.balance || 0,
-    estimatedValue,
-    history,
-  });
+    // 1. Authoritative Pending Value from actual Collections in inventory
+    const supplierLoads = await db
+      .collection("inventory")
+      .find({
+        $or: [
+          ...(supplierObjId ? [{ supplierId: supplierObjId }] : []),
+          { supplierId: targetSupplierId },
+        ],
+      })
+      .toArray();
+
+    // Pending value (collections captured/delivered but not yet marked as paid)
+    const pendingLoads = supplierLoads.filter((l) => (l.paymentStatus || "pending").toLowerCase() !== "paid");
+    const estimatedValue = pendingLoads.reduce(
+      (acc, l) => acc + (Number(l.netValueKes || l.grossValueKes || l.quantity * (l.unitPricePerKg || 35)) || 0),
+      0
+    );
+
+    // 2. Authoritative Payments history from payments collection
+    const paymentRecords = await db
+      .collection("payments")
+      .find({
+        $or: [
+          ...(supplierObjId ? [{ recipientId: supplierObjId }] : []),
+          { recipientId: targetSupplierId },
+        ],
+      })
+      .sort({ createdAt: -1, paidAt: -1 })
+      .limit(10)
+      .toArray();
+
+    const totalPaidBalance = paymentRecords
+      .filter((p) => p.status === "completed")
+      .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+
+    const history = paymentRecords.map((p) => ({
+      id: p._id.toString(),
+      paymentNo: p.paymentNo,
+      amount: Number(p.amount) || 0,
+      paymentMethod: p.method || "M-PESA",
+      paymentReference: p.paymentReference,
+      status: p.status,
+      description: p.notes || `Disbursement for collection ${p.paymentReference}`,
+      date: p.paidAt || p.createdAt || new Date(),
+    }));
+
+    return NextResponse.json({
+      balance: Math.round(totalPaidBalance * 100) / 100,
+      estimatedValue: Math.round(estimatedValue * 100) / 100,
+      history,
+    });
+  } catch (error: any) {
+    console.error("[Supplier Finance API Error]:", error);
+    return NextResponse.json({ error: error.message || "Failed to fetch financial data" }, { status: 500 });
+  }
 }

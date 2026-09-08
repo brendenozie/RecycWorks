@@ -14,10 +14,19 @@ export function FinancePortal({ userToken }: { userToken: string }) {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   useEffect(() => {
-    fetch("/api/supplier/finance?supplierId=ALPHA_01")
-      .then(res => res.json())
-      .then(data => {
+    const token = localStorage.getItem("token");
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    fetch("/api/supplier/finance", { headers })
+      .then((res) => (res.ok ? res.json() : { balance: 0, estimatedValue: 0, history: [] }))
+      .then((data) => {
         setFinData(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch finance portal data", err);
+        setFinData({ balance: 0, estimatedValue: 0, history: [] });
         setLoading(false);
       });
   }, []);

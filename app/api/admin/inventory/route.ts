@@ -19,10 +19,31 @@ export async function GET(request: Request) {
     const items = await db
       .collection("inventory")
       .find(query)
-      .sort({ timestamp: -1 })
+      .sort({ createdAt: -1, timestamp: -1 })
       .toArray();
 
-    return NextResponse.json(items);
+    const normalizedItems = items.map((l) => ({
+      _id: l._id.toString(),
+      id: l._id.toString(),
+      loadNumber: l.loadNumber || `RWL-${l._id.toString().slice(-6).toUpperCase()}`,
+      name: l.material || l.name || "Mixed Plastics",
+      material: l.material || l.name || "Mixed Plastics",
+      grade: l.grade || "Standard",
+      weight: l.weight || `${l.normalizedWeightKg || l.quantity || 0}kg`,
+      normalizedWeightKg: Number(l.normalizedWeightKg || l.quantity || 0),
+      supplier: l.supplierName || l.supplier || "Supplier",
+      supplierName: l.supplierName || l.supplier || "Supplier",
+      supplierId: l.supplierId ? l.supplierId.toString() : "",
+      driver: l.driverName || l.driver || "",
+      driverName: l.driverName || l.driver || "",
+      driverId: l.driverId ? l.driverId.toString() : "",
+      status: l.status || "pending",
+      paymentStatus: l.paymentStatus || "pending",
+      timestamp: l.timestamp || l.createdAt || new Date(),
+      createdAt: l.createdAt || l.timestamp || new Date(),
+    }));
+
+    return NextResponse.json(normalizedItems);
   } catch (error) {
     return NextResponse.json(
       { error: "Failed to fetch inventory matrix logs" },

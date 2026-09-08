@@ -197,3 +197,103 @@ export function calculateLoadValue(
     netValueKes,
   };
 }
+
+export interface LoadGroupInput {
+  id?: string;
+  material: string;
+  grade: string;
+  sacks: (number | string)[];
+  photos?: string[];
+  notes?: string;
+}
+
+export interface CalculatedGroupItem {
+  id: string;
+  material: string;
+  grade: string;
+  sacks: number[];
+  sackCount: number;
+  totalWeightKg: number;
+  unitPricePerKg: number;
+  estimatedValueKes: number;
+  photos?: string[];
+  notes?: string;
+}
+
+export interface CalculatedCollectionSummary {
+  items: CalculatedGroupItem[];
+  totalSacks: number;
+  totalWeightKg: number;
+  grossValueKes: number;
+  adjustmentKes: number;
+  netValueKes: number;
+  summaryMaterial: string;
+  summaryGrade: string;
+}
+
+/**
+ * Calculates authoritative values for multi-group collections (Material + Grade + Sacks)
+ * Ensures every individual sack is validated, summed, priced, and summarized.
+ */
+export function calculateMultiGroupLoad(
+  groups: LoadGroupInput[],
+  adjustmentKes: number = 0
+): CalculatedCollectionSummary {
+  let totalSacks = 0;
+  let totalWeightKg = 0;
+  let grossValueKes = 0;
+
+  const materialsSet = new Set<string>();
+  const gradesSet = new Set<string>();
+
+  const items: CalculatedGroupItem[] = (groups || []).map((grp, index) => {
+    const validSacks = (grp.sacks || [])
+      .map((w) => parseFloat(String(w)))
+      .filter((w) => !isNaN(w) && w > 0)
+      .map((w) => Math.round(w * 100) / 100);
+
+    const groupWeightKg = Math.round(validSacks.reduce((acc, curr) => acc + curr, 0) * 100) / 100;
+    const unitPrice = getApplicablePricePerKg(grp.material, grp.grade);
+    const groupValueKes = Math.round(groupWeightKg * unitPrice);
+
+    totalSacks += validSacks.length;
+    totalWeightKg += groupWeightKg;
+    grossValueKes += groupValueKes;
+
+    if (grp.material) materialsSet.add(grp.material.trim());
+    if (grp.grade) gradesSet.add(grp.grade.trim());
+
+    return {
+      id: grp.id || `grp-${index + 1}`,
+      material: grp.material,
+      grade: grp.grade,
+      sacks: validSacks,
+      sackCount: validSacks.length,
+      totalWeightKg: groupWeightKg,
+      unitPricePerKg: unitPrice,
+      estimatedValueKes: groupValueKes,
+      photos: grp.photos || [],
+      notes: grp.notes || "",
+    };
+  });
+
+  const netValueKes = Math.max(0, grossValueKes + (Number(adjustmentKes) || 0));
+
+  const matArray = Array.from(materialsSet);
+  const grdArray = Array.from(gradesSet);
+
+  const summaryMaterial = matArray.length === 1 ? matArray[0] : (matArray.join(", ") || "Mixed Recyclables");
+  const summaryGrade = grdArray.length === 1 ? grdArray[0] : (grdArray.join(", ") || "Multi-Grade");
+
+  return {
+    items,
+    totalSacks,
+    totalWeightKg: Math.round(totalWeightKg * 100) / 100,
+    grossValueKes,
+    adjustmentKes: Number(adjustmentKes) || 0,
+    netValueKes,
+    summaryMaterial,
+    summaryGrade,
+  };
+}
+

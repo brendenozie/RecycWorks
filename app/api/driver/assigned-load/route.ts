@@ -91,6 +91,8 @@ export async function GET(request: Request) {
         photos: load.photos || [],
         proofOfCollectionPhoto: load.proofOfCollectionPhoto || null,
         notes: load.notes || "",
+        items: load.items || [],
+        totalSacks: load.totalSacks || (load.items?.reduce((acc: number, it: any) => acc + (it.sackCount || it.sacks?.length || 0), 0) || 1),
       };
     });
 

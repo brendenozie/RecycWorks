@@ -25,9 +25,9 @@ const SLIDES = [
   {
     id: 2,
     image: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1920&q=80",
-    alt: "Dedicated ISUZU FRR collection truck ready for dispatch",
+    alt: "Dedicated  collection truck ready for dispatch",
     tagline: "Dedicated Fleet",
-    title: "ISUZU FRR Bulk Collection Fleet"
+    title: " Bulk Collection Fleet"
   },
   {
     id: 3,
@@ -40,7 +40,7 @@ const SLIDES = [
 
 const STATS = [
   { label: "Same-Day Settlement", value: "Instant M-Pesa / Bank" },
-  { label: "Dedicated Fleet", value: "ISUZU FRR 10-Ton Haulers" },
+  { label: "Dedicated Fleet", value: " 10-Ton Haulers" },
   { label: "Central Yard Offtake", value: "50+ Metric Tons/Day" }
 ];
 
@@ -197,7 +197,7 @@ export default function HeroSection() {
                   </div>
                   <div>
                     <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">Dedicated Fleet</span>
-                    <span className="block text-base font-bold text-slate-900">ISUZU FRR Haulers</span>
+                    <span className="block text-base font-bold text-slate-900"> Haulers</span>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">
@@ -206,7 +206,7 @@ export default function HeroSection() {
               </div>
               <div className="flex items-end justify-between">
                 <p className="text-sm text-slate-600 font-normal leading-relaxed">
-                  Dedicated ISUZU FRR 10-ton bulk site clearance available for verified aggregators nationwide.
+                  Dedicated  10-ton bulk site clearance available for verified aggregators nationwide.
                 </p>
                 <MapPinIcon className="h-5 w-5 text-slate-400 shrink-0 ml-2" />
               </div>

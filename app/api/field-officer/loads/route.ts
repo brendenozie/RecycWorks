@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDatabase } from "@/lib/mongodb";
 import { verifyToken } from "@/lib/auth";
-import { calculateLoadValue } from "@/lib/pricing";
+import { calculateLoadValue, calculateMultiGroupLoad, LoadGroupInput } from "@/lib/pricing";
 import { ObjectId } from "mongodb";
 
 function extractOfficer(request: NextRequest) {
@@ -60,11 +60,25 @@ export async function POST(request: NextRequest) {
       county,
       subCounty,
       landmark,
+      gps,
+      groups,
+      items,
     } = body;
 
-    if (!supplierId || !material || !grade || !quantity) {
+    if (!supplierId) {
       return NextResponse.json(
-        { error: "Supplier, Material, Grade, and Quantity are required" },
+        { error: "Supplier is required to record a collection" },
+        { status: 400 }
+      );
+    }
+
+    // Determine if this is a modern multi-group collection or legacy single item
+    const rawGroups: LoadGroupInput[] = groups || items || [];
+    const isMultiGroup = Array.isArray(rawGroups) && rawGroups.length > 0;
+
+    if (!isMultiGroup && (!material || !grade || !quantity)) {
+      return NextResponse.json(
+        { error: "Supplier, Material, Grade, and Quantity (or multi-material groups) are required" },
         { status: 400 }
       );
     }
@@ -84,62 +98,155 @@ export async function POST(request: NextRequest) {
     const hubId = supplierRecord?.hubId || body.hubId || null;
     const hubName = supplierRecord?.hubName || body.hubName || "Nairobi Core Hub";
 
-    // Server-side authoritative load value calculation
-    const numQty = parseFloat(quantity) || 0;
-    const cleanUnit = (unit || "KG").toUpperCase();
-    const valuation = calculateLoadValue(numQty, cleanUnit, material, grade, 0);
-
     const loadNumber = await generateLoadNumber(db);
 
-    const newLoad = {
-      loadNumber,
-      name: material, // Feedstock category
-      material,
-      grade,
-      weight: `${valuation.quantity}${valuation.unit === "TONNES" ? "t" : "kg"}`,
-      quantity: valuation.quantity,
-      unit: valuation.unit,
-      normalizedWeightKg: valuation.normalizedWeightKg,
-      unitPricePerKg: valuation.unitPricePerKg,
-      grossValueKes: valuation.grossValueKes,
-      adjustmentKes: 0,
-      netValueKes: valuation.netValueKes,
-      supplier: supplierName,
-      supplierName,
-      supplierId: supplierRecord ? supplierRecord._id.toString() : supplierId,
-      supplierCode,
-      fieldOfficerId: officer?.userId || body.fieldOfficerId || null,
-      fieldOfficerName: officer?.email || body.fieldOfficerName || "Field Operations",
-      driver: "",
-      driverId: "",
-      hubId,
-      hubName,
-      status: "captured", // captured -> assigned -> in-transit -> delivered -> verified -> valued -> payment_pending -> paid
-      pickupLocation: {
-        county: county || supplierRecord?.county || "Nairobi",
-        subCounty: subCounty || supplierRecord?.subCounty || "",
-        landmark: landmark || "",
-      },
-      photos: Array.isArray(photos) ? photos : (photos ? [photos] : []),
-      notes: notes || "",
-      paymentStatus: "pending",
-      paymentReference: null,
-      timestamp: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    let newLoad: Record<string, any>;
+
+    if (isMultiGroup) {
+      // Validate groups
+      for (let i = 0; i < rawGroups.length; i++) {
+        const g = rawGroups[i];
+        if (!g.material || !g.grade) {
+          return NextResponse.json(
+            { error: `Group #${i + 1} is missing material or grade` },
+            { status: 400 }
+          );
+        }
+        if (!Array.isArray(g.sacks) || g.sacks.length === 0) {
+          return NextResponse.json(
+            { error: `Group "${g.material} (${g.grade})" has no sack weights entered` },
+            { status: 400 }
+          );
+        }
+        const hasInvalid = g.sacks.some((w) => isNaN(parseFloat(String(w))) || parseFloat(String(w)) <= 0);
+        if (hasInvalid) {
+          return NextResponse.json(
+            { error: `Group "${g.material} (${g.grade})" contains non-positive or invalid sack weights` },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Authoritative multi-group calculation
+      const multiValuation = calculateMultiGroupLoad(rawGroups, 0);
+
+      newLoad = {
+        loadNumber,
+        name: multiValuation.summaryMaterial,
+        material: multiValuation.summaryMaterial,
+        grade: multiValuation.summaryGrade,
+        weight: `${multiValuation.totalWeightKg}kg`,
+        quantity: multiValuation.totalWeightKg,
+        unit: "KG",
+        normalizedWeightKg: multiValuation.totalWeightKg,
+        unitPricePerKg: multiValuation.items[0]?.unitPricePerKg || 0,
+        grossValueKes: multiValuation.grossValueKes,
+        adjustmentKes: 0,
+        netValueKes: multiValuation.netValueKes,
+        totalSacks: multiValuation.totalSacks,
+        items: multiValuation.items,
+        supplier: supplierName,
+        supplierName,
+        supplierId: supplierRecord ? supplierRecord._id.toString() : supplierId,
+        supplierCode,
+        fieldOfficerId: officer?.userId || body.fieldOfficerId || null,
+        fieldOfficerName: officer?.email || body.fieldOfficerName || "Field Operations",
+        driver: "",
+        driverId: "",
+        hubId,
+        hubName,
+        status: "captured", // captured -> assigned -> in-transit -> delivered -> verified -> valued -> payment_pending -> paid
+        pickupLocation: {
+          county: county || supplierRecord?.county || "Nairobi",
+          subCounty: subCounty || supplierRecord?.subCounty || "",
+          landmark: landmark || "",
+          gps: gps || supplierRecord?.gpsCoordinates || "",
+        },
+        photos: Array.isArray(photos) ? photos : (photos ? [photos] : []),
+        notes: notes || "",
+        paymentStatus: "pending",
+        paymentReference: null,
+        timestamp: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    } else {
+      // Legacy single material/grade calculation
+      const numQty = parseFloat(quantity) || 0;
+      const cleanUnit = (unit || "KG").toUpperCase();
+      const valuation = calculateLoadValue(numQty, cleanUnit, material, grade, 0);
+
+      const singleItem = {
+        id: "grp-1",
+        material,
+        grade,
+        sacks: [valuation.normalizedWeightKg],
+        sackCount: 1,
+        totalWeightKg: valuation.normalizedWeightKg,
+        unitPricePerKg: valuation.unitPricePerKg,
+        estimatedValueKes: valuation.grossValueKes,
+        photos: Array.isArray(photos) ? photos : (photos ? [photos] : []),
+        notes: notes || "",
+      };
+
+      newLoad = {
+        loadNumber,
+        name: material,
+        material,
+        grade,
+        weight: `${valuation.quantity}${valuation.unit === "TONNES" ? "t" : "kg"}`,
+        quantity: valuation.quantity,
+        unit: valuation.unit,
+        normalizedWeightKg: valuation.normalizedWeightKg,
+        unitPricePerKg: valuation.unitPricePerKg,
+        grossValueKes: valuation.grossValueKes,
+        adjustmentKes: 0,
+        netValueKes: valuation.netValueKes,
+        totalSacks: 1,
+        items: [singleItem],
+        supplier: supplierName,
+        supplierName,
+        supplierId: supplierRecord ? supplierRecord._id.toString() : supplierId,
+        supplierCode,
+        fieldOfficerId: officer?.userId || body.fieldOfficerId || null,
+        fieldOfficerName: officer?.email || body.fieldOfficerName || "Field Operations",
+        driver: "",
+        driverId: "",
+        hubId,
+        hubName,
+        status: "captured",
+        pickupLocation: {
+          county: county || supplierRecord?.county || "Nairobi",
+          subCounty: subCounty || supplierRecord?.subCounty || "",
+          landmark: landmark || "",
+          gps: gps || supplierRecord?.gpsCoordinates || "",
+        },
+        photos: Array.isArray(photos) ? photos : (photos ? [photos] : []),
+        notes: notes || "",
+        paymentStatus: "pending",
+        paymentReference: null,
+        timestamp: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
 
     const result = await db.collection("inventory").insertOne(newLoad);
 
-    // Update category active orders count
+    // Update active orders count for involved feedstock categories
     try {
-      await db.collection("feedstockCategories").updateOne(
-        { name: material },
-        {
-          $inc: { activeOrders: 1 },
-          $set: { updatedAt: new Date() },
+      if (newLoad.items && Array.isArray(newLoad.items)) {
+        const uniqueMaterials = Array.from(new Set(newLoad.items.map((it: any) => it.material)));
+        for (const mat of uniqueMaterials) {
+          await db.collection("feedstockCategories").updateOne(
+            { name: mat },
+            {
+              $inc: { activeOrders: 1 },
+              $set: { updatedAt: new Date() },
+            }
+          );
         }
-      );
+      }
     } catch (catErr) {
       console.warn("Feedstock update skipped:", catErr);
     }
@@ -152,11 +259,13 @@ export async function POST(request: NextRequest) {
       entityId: result.insertedId.toString(),
       details: {
         loadNumber,
-        material,
-        grade,
-        normalizedWeightKg: valuation.normalizedWeightKg,
-        grossValueKes: valuation.grossValueKes,
+        material: newLoad.material,
+        grade: newLoad.grade,
+        totalSacks: newLoad.totalSacks,
+        normalizedWeightKg: newLoad.normalizedWeightKg,
+        grossValueKes: newLoad.grossValueKes,
         supplierName,
+        itemsCount: newLoad.items?.length || 1,
       },
       timestamp: new Date(),
     });
@@ -164,7 +273,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: "Load captured and registered into operational matrix.",
+        message: "Collection captured and registered into operational matrix.",
         load: {
           ...newLoad,
           id: result.insertedId.toString(),
@@ -181,3 +290,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

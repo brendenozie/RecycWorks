@@ -58,19 +58,38 @@ const ProgressGauge = ({ current, target }: { current: number; target: number })
 
 export function CommandCenter() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [pipelineData, setPipelineData] = useState<any[]>([]);
+  const [exceptions, setExceptions] = useState<any[]>([]);
+  const [reconciliation, setReconciliation] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Replace with your actual API route path
-        const response = await fetch('/api/admin/dashboard/operations');
-        if (!response.ok) throw new Error("Failed to fetch data");
-        const json = await response.json();
-        setData(json.data);
+        const token = localStorage.getItem("token");
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const [opsRes, pipelineRes] = await Promise.all([
+          fetch('/api/admin/dashboard/operations'),
+          fetch('/api/v1/admin/operations', { headers }).catch(() => null)
+        ]);
+
+        if (opsRes.ok) {
+          const json = await opsRes.json();
+          setData(json.data);
+        }
+
+        if (pipelineRes && pipelineRes.ok) {
+          const pipeJson = await pipelineRes.json();
+          if (pipeJson.data) {
+            setPipelineData(pipeJson.data.pipeline || []);
+            setExceptions(pipeJson.data.exceptions || []);
+            setReconciliation(pipeJson.data.reconciliation || null);
+          }
+        }
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);
-        // On error, leave data as null to trigger the '0' fallbacks
       } finally {
         setIsLoading(false);
       }
@@ -193,6 +212,51 @@ export function CommandCenter() {
           </motion.div>
         ))}
       </div>
+
+      {/* --- LIVE 9-STAGE OPERATIONAL PIPELINE BANNER --- */}
+      {pipelineData.length > 0 && (
+        <div className="p-6 rounded-2xl bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                Live 9-Stage Operational Pipeline
+              </h3>
+            </div>
+            <span className="text-xs text-slate-400 font-medium">Real-Time Stage Distribution</span>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
+            {pipelineData.map((stage: any) => (
+              <div
+                key={stage.id}
+                className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 flex flex-col items-center text-center group hover:border-emerald-500/40 transition-colors"
+              >
+                <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 mb-1">
+                  {stage.count}
+                </span>
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 leading-tight line-clamp-2">
+                  {stage.name}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {exceptions.length > 0 && (
+            <div className="pt-2 border-t border-slate-100 dark:border-white/5 space-y-2">
+              {exceptions.map((ex: any) => (
+                <div
+                  key={ex.id}
+                  className="px-3.5 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2 font-medium"
+                >
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  <span>{ex.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* --- CONTENT BLOCK TRACKERS --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

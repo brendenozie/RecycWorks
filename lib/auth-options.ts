@@ -4,6 +4,7 @@ import { getDatabase } from "./mongodb";
 import { generateToken } from "./auth";
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "RecycWorks-secure-key-2026",
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,

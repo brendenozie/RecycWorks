@@ -95,14 +95,59 @@ model Load {
   photos                 String[] @default([])
   proofOfCollectionPhoto String?
   actualWeightKg         Float?
+  verifiedWeightKg       Float?
+  discrepancyKg          Float?
+  verifiedBy             String?
+  verifiedAt             DateTime?
+  totalSacks             Int?     @default(0)
+  items                  Json?    // Array of groups: [{ id, material, grade, sacks: number[], sackCount, totalWeightKg, unitPricePerKg, estimatedValueKes, photos }]
+  draftStep              String?
   paymentStatus          String   @default("pending") // pending, approved, paid
   paymentReference       String?
   notes                  String?
+  assignedVehiclePlate   String?
+  dispatchedAt           DateTime?
+  arrivedAt              DateTime?
+  collectedAt            DateTime?
+  deliveredAt            DateTime?
+  driverNotes            String?
+  pickupCondition        String?
+  nightTravel            Boolean? @default(false)
+  receivedAt             DateTime?
+  receivedBy             String?
+  receivedWeightKg       Float?
+  receivingDiscrepancyKg Float?
+  receivingDiscrepancyReason String?
+  receivingNotes         String?
+  receivingPhoto         String?
+  sortingRequired        Boolean? @default(false)
+  sortingStatus          String?  @default("not_required") // not_required, pending, in_progress, completed
+  processingStatus       String?  @default("none") // none, planned, in_progress, completed
   timestamp              DateTime @default(now())
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   @@map("inventory")
+}
+
+model MasterDataRequest {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  type            String    // "material" | "grade"
+  materialName    String
+  gradeName       String?
+  notes           String?
+  photo           String?
+  status          String    @default("pending") // "pending", "approved", "rejected"
+  requestedBy     String?   @db.ObjectId
+  requestedByName String?
+  suggestedPrice  Float?
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  adminNotes      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("material_requests")
 }
 
 model PickupRequest {
@@ -132,23 +177,69 @@ model PickupRequest {
 }
 
 model Payment {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  paymentNo        String?  @unique // PAY-2026-001
-  recipientId      String   @db.ObjectId
-  recipientName    String
-  recipientType    String   // "supplier", "driver", "field_officer"
-  loadId           String?  @db.ObjectId
-  batchId          String?
-  amount           Float
-  method           String   @default("M-PESA") // M-PESA, BANK, CASH
-  paymentReference String   // e.g. QA12XY9876
-  status           String   @default("completed") // pending, approved, completed, failed
-  processedBy      String?
-  notes            String?
-  paidAt           DateTime @default(now())
-  createdAt        DateTime @default(now())
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  paymentNo         String?   @unique // PAY-2026-001
+  recipientId       String    @db.ObjectId
+  recipientName     String
+  recipientType     String    // "supplier", "driver", "field_officer"
+  loadId            String?   @db.ObjectId
+  batchId           String?
+  amount            Float
+  method            String    @default("M-PESA") // M-PESA, BANK, CASH
+  paymentReference  String    // e.g. QA12XY9876
+  status            String    @default("completed") // pending, approved, completed, failed
+  processedBy       String?
+  approvedBy        String?
+  approvedAt        DateTime?
+  initiatedBy       String?
+  provider          String?   // CASH, MPESA_MANUAL, MPESA_API, BANK
+  providerReference String?
+  failureReason     String?
+  notes             String?
+  paidAt            DateTime? @default(now())
+  createdAt         DateTime  @default(now())
 
   @@map("payments")
+}
+
+model DriverShift {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  driverId         String    @db.ObjectId
+  driverName       String
+  vehiclePlate     String
+  startedAt        DateTime  @default(now())
+  endedAt          DateTime?
+  startOdometer    Float
+  endOdometer      Float?
+  distanceKm       Float?    @default(0)
+  startFuelPercent Float?
+  endFuelPercent   Float?
+  nightTravel      Boolean   @default(false)
+  status           String    @default("active") // active, completed
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("driver_shifts")
+}
+
+model FuelRecord {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  vehiclePlate String
+  driverId     String   @db.ObjectId
+  driverName   String?
+  shiftId      String?  @db.ObjectId
+  tripId       String?  @db.ObjectId
+  litres       Float
+  amountKes    Float
+  fuelType     String   @default("Diesel") // Diesel, Petrol
+  station      String?
+  odometer     Float?
+  receiptPhoto String?
+  recordedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@map("fuel_records")
 }
 
 model AuditLog {
@@ -164,3 +255,131 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+model InventoryLot {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  lotNumber           String   @unique // e.g. LOT-2026-0001
+  hubId               String   @db.ObjectId
+  hubName             String?
+  material            String
+  grade               String
+  stage               String   @default("RAW") // RAW, SORTED, PROCESSED, FINISHED
+  quantityKg          Float
+  availableQuantityKg Float
+  reservedQuantityKg  Float    @default(0)
+  unit                String   @default("KG")
+  sourceType          String   // COLLECTION, SORTING_OUTPUT, PROCESSING_OUTPUT, ADJUSTMENT
+  sourceId            String   // Load id, SortingWorkOrder id, ProcessingBatch id
+  status              String   @default("AVAILABLE") // AVAILABLE, RESERVED, DEPLETED
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("inventory_lots")
+}
+
+model InventoryMovement {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  movementNumber String   @unique // MOV-2026-0001
+  lotId          String   @db.ObjectId
+  hubId          String   @db.ObjectId
+  type           String   // RECEIPT, SORTING_CONSUMPTION, SORTING_OUTPUT, PROCESSING_INPUT, PROCESSING_OUTPUT, ORDER_RESERVATION, OUTBOUND_DELIVERY, ADJUSTMENT
+  quantityKg     Float    // positive for additions, negative for deductions
+  balanceAfterKg Float
+  referenceType  String   // COLLECTION, SORTING, PROCESSING, ORDER, ADJUSTMENT
+  referenceId    String
+  performedBy    String?
+  notes          String?
+  timestamp      DateTime @default(now())
+
+  @@map("inventory_movements")
+}
+
+model SortingWorkOrder {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  workOrderNo      String    @unique // SWO-2026-0001
+  hubId            String    @db.ObjectId
+  hubName          String?
+  sourceLotIds     String[]  @default([])
+  inputMaterial    String
+  inputQuantityKg  Float
+  assignedStaff    String[]  @default([])
+  status           String    @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+  outputs          Json?     // [{ material, grade, quantityKg, outputLotId }]
+  rejectQuantityKg Float     @default(0)
+  lossQuantityKg   Float     @default(0)
+  totalOutputKg    Float     @default(0)
+  varianceKg       Float     @default(0)
+  varianceReason   String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  notes            String?
+  createdBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("sorting_work_orders")
+}
+
+model ProcessingBatch {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  batchNo            String    @unique // PB-2026-0001
+  hubId              String    @db.ObjectId
+  hubName            String?
+  processType        String    // CRUSHING, WASHING, SHREDDING, PELLETIZING, BALING, COMPACTING, OTHER
+  machineName        String?   // e.g. "Crusher 01"
+  sourceLotIds       String[]  @default([])
+  inputMaterial      String
+  inputQuantityKg    Float
+  operator           String?
+  assistants         String[]  @default([])
+  status             String    @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED, PAUSED, CANCELLED
+  outputs            Json?     // [{ material, grade, quantityKg, outputLotId }]
+  residueQuantityKg  Float     @default(0)
+  processLossKg      Float     @default(0)
+  totalOutputKg      Float     @default(0)
+  varianceKg         Float     @default(0)
+  outputStockType    String?   // e.g. "Crushed PP"
+  startedAt          DateTime?
+  completedAt        DateTime?
+  notes              String?
+  createdBy          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("processing_batches")
+}
+
+model CustomerOrder {
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderNo              String    @unique // ORD-2026-0001
+  customerName         String
+  customerContact      String?
+  customerPhone        String?
+  customerEmail        String?
+  deliveryAddress      String
+  deliveryCounty       String?
+  material             String
+  grade                String
+  requiredQuantityKg   Float
+  unitPriceKes         Float
+  totalAmountKes       Float
+  status               String    @default("PENDING") // PENDING, APPROVED, RESERVED, DISPATCHED, IN_TRANSIT, DELIVERED, COMPLETED, CANCELLED
+  reservedLotIds       String[]  @default([])
+  assignedDriverId     String?   @db.ObjectId
+  assignedDriverName   String?
+  assignedVehiclePlate String?
+  dispatchedAt         DateTime?
+  deliveredAt          DateTime?
+  proofOfDeliveryPhoto String?
+  recipientName        String?
+  deliveryNotes        String?
+  paymentStatus        String    @default("PENDING") // PENDING, INVOICED, PAID
+  createdBy            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@map("customer_orders")
+}
+
+
+

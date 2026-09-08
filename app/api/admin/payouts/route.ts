@@ -103,13 +103,29 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // 5. Recent completed payout transactions
-    const recentPayouts = await db
-      .collection("transactions")
+    // 5. Recent completed payout transactions from authoritative payments collection
+    const rawPayments = await db
+      .collection("payments")
       .find({})
-      .sort({ date: -1 })
-      .limit(30)
+      .sort({ createdAt: -1, paidAt: -1 })
+      .limit(50)
       .toArray();
+
+    const recentPayouts = rawPayments.map((p) => ({
+      _id: p._id.toString(),
+      paymentNo: p.paymentNo || `PAY-${p._id.toString().slice(-6).toUpperCase()}`,
+      loadId: p.loadId ? p.loadId.toString() : null,
+      supplierId: p.recipientId ? p.recipientId.toString() : null,
+      recipientName: p.recipientName || "Supplier",
+      amount: Number(p.amount) || 0,
+      paymentMethod: p.method || "M-PESA",
+      paymentReference: p.paymentReference || "N/A",
+      type: "Payout",
+      description: p.notes || `Disbursement ${p.paymentReference} via ${p.method}`,
+      paidBy: p.processedBy || p.initiatedBy || "Finance Desk",
+      status: p.status || "completed",
+      date: p.paidAt || p.createdAt || new Date(),
+    }));
 
     return NextResponse.json({
       pendingLoads,
@@ -152,64 +168,93 @@ export async function POST(request: NextRequest) {
     const session = client.startSession();
 
     try {
-      await session.withTransaction(async () => {
-        // 1. Update Load Status if loadId provided
-        if (loadId && ObjectId.isValid(loadId)) {
-          await db.collection("inventory").updateOne(
-            { _id: new ObjectId(loadId) },
-            {
-              $set: {
-                paymentStatus: "paid",
-                status: "paid",
-                paymentReference,
-                paymentMethod,
-                amountPaidKes: Number(amount),
-                paidAt: new Date(),
-                paidBy: admin?.email || "Finance Desk",
-                updatedAt: new Date(),
-              },
-            },
-            { session }
-          );
-        }
+      const now = new Date();
+      const paymentNo = `PAY-${now.getFullYear()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-        // 2. Update Supplier/Staff Wallet
-        if (supplierId) {
-          await db.collection("wallets").updateOne(
-            { supplierId: supplierId.toString() },
-            {
-              $inc: { balance: Number(amount) || 0 },
-              $set: { lastUpdated: new Date() },
-            },
-            { upsert: true, session }
-          );
-        }
+      // Resolve recipient details from supplierId or load
+      let recipientObjId: ObjectId = new ObjectId();
+      let resolvedRecipientName = recipientName || "Supplier";
+      let recipientType = "supplier";
 
-        // 3. Create Audit Ledger Record
-        await db.collection("transactions").insertOne(
+      if (supplierId && ObjectId.isValid(supplierId)) {
+        recipientObjId = new ObjectId(supplierId);
+        const supp = await db.collection("users").findOne({ _id: recipientObjId });
+        if (supp) {
+          resolvedRecipientName = `${supp.firstName || ""} ${supp.lastName || ""}`.trim() || supp.businessName || resolvedRecipientName;
+          recipientType = supp.role || "supplier";
+        }
+      }
+
+      const paymentRecord = {
+        paymentNo,
+        recipientId: recipientObjId,
+        recipientName: resolvedRecipientName,
+        recipientType,
+        loadId: loadId && ObjectId.isValid(loadId) ? new ObjectId(loadId) : null,
+        amount: Number(amount) || 0,
+        method: paymentMethod,
+        paymentReference,
+        status: "completed",
+        provider: paymentMethod === "CASH" ? "CASH" : paymentMethod === "BANK" ? "BANK" : "MPESA_MANUAL",
+        processedBy: admin?.email || "Finance Desk",
+        initiatedBy: admin?.email || "Finance Desk",
+        notes: notes || `Disbursement recorded via ${paymentMethod}`,
+        paidAt: now,
+        createdAt: now,
+      };
+
+      // 1. Insert authoritative payment record
+      await db.collection("payments").insertOne(paymentRecord);
+
+      // 2. Update Load Status if loadId provided
+      if (loadId && ObjectId.isValid(loadId)) {
+        await db.collection("inventory").updateOne(
+          { _id: new ObjectId(loadId) },
           {
-            loadId: loadId || null,
-            supplierId: supplierId || null,
-            recipientName: recipientName || "Supplier",
-            amount: Number(amount) || 0,
-            paymentMethod,
-            paymentReference,
-            type: "Payout",
-            description: `Payment for consignment ${loadId || "Consolidated"} via ${paymentMethod} (${paymentReference})`,
-            paidBy: admin?.email || "Finance Desk",
-            notes: notes || "",
-            date: new Date(),
-          },
-          { session }
+            $set: {
+              paymentStatus: "paid",
+              status: "PAID",
+              paymentReference,
+              paymentMethod,
+              amountPaidKes: Number(amount),
+              paidAt: now,
+              paidBy: admin?.email || "Finance Desk",
+              updatedAt: now,
+            },
+          }
         );
+      }
+
+      // 3. Audit log entry
+      await db.collection("audit_logs").insertOne({
+        userId: admin?.userId || "finance_desk",
+        userEmail: admin?.email || "finance@recycworks.ke",
+        action: "PAYMENT_RECORDED",
+        entityType: "PAYMENT",
+        entityId: paymentNo,
+        details: {
+          paymentNo,
+          loadId,
+          supplierId,
+          recipientName: resolvedRecipientName,
+          amount: Number(amount) || 0,
+          paymentMethod,
+          paymentReference,
+        },
+        timestamp: now,
       });
 
       return NextResponse.json({
         success: true,
-        message: `Payout of KES ${amount?.toLocaleString()} recorded successfully with reference ${paymentReference}.`,
+        paymentNo,
+        message: `Payout of KES ${Number(amount)?.toLocaleString()} recorded successfully with reference ${paymentReference}.`,
       });
-    } finally {
-      await session.endSession();
+    } catch (txError: any) {
+      console.error("[Process Payout Transaction Error]:", txError);
+      return NextResponse.json(
+        { error: txError.message || "Failed to commit payout transaction" },
+        { status: 500 }
+      );
     }
   } catch (error: any) {
     console.error("[Process Payout Error]:", error);

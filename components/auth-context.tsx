@@ -17,6 +17,11 @@ export interface User {
   status: "active" | "suspended" | "pending_verification";
   image?: string;
   isAdmin: boolean;
+  driverProfile?: {
+    vehiclePlate?: string;
+    licenseNumber?: string;
+    assignedHubId?: string;
+  } | null;
   createdAt?: Date;
 }
 

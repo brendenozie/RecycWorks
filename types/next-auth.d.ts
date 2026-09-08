@@ -13,6 +13,11 @@ declare module "next-auth" {
       status: string;
       emailVerified?: boolean;
       createdAt?: Date | string;
+      driverProfile?: {
+        vehiclePlate?: string;
+        licenseNumber?: string;
+        assignedHubId?: string;
+      } | null;
     } & DefaultSession["user"];
     appToken: string;
   }
@@ -23,6 +28,11 @@ declare module "next-auth" {
     role?: string;
     hubId?: string | null;
     status?: string;
+    driverProfile?: {
+      vehiclePlate?: string;
+      licenseNumber?: string;
+      assignedHubId?: string;
+    } | null;
   }
 }
 
