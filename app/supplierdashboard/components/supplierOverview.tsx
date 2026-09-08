@@ -25,6 +25,7 @@ type Batch = {
   status: string;
   createdAt?: string;
   value?: number; // Optional monetary value if provided by DB
+  rawWeight?: number;
 };
 
 type Pickup = {
