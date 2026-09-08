@@ -50,15 +50,15 @@ const navGroups = [
     label: "Resources",
     items: [
       { id: "feedstock", label: "Feedstock", icon: RectangleStackIcon },
-      { id: "inventory", label: "Material Ledger", icon: ArchiveBoxIcon },
     ]
   },
   {
     label: "Operations",
     items: [
+      { id: "sourcing", label: "Sourcing Requests", icon: ClipboardDocumentListIcon },
+      { id: "inventory", label: "Material Ledger", icon: ArchiveBoxIcon },
       { id: "dispatch", label: "Dispatch Queue", icon: TruckIcon },
       { id: "depot-ops", label: "Depot & Processing", icon: BuildingStorefrontIcon },
-      { id: "sourcing", label: "Sourcing Requests", icon: ClipboardDocumentListIcon },
     ]
   },
   {
@@ -225,7 +225,7 @@ export default function AdminDashboard() {
                   <XMarkIcon className="w-5 h-5 stroke-[2px]" />
                 </button>
               </div>
-              
+
               <div className="flex-grow overflow-y-auto p-4 space-y-6">
                 {navGroups.map((group, idx) => (
                   <div key={idx} className="space-y-1">
@@ -243,7 +243,7 @@ export default function AdminDashboard() {
                             : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-white/5"
                         )}
                       >
-                         {activeTab === item.id && (
+                        {activeTab === item.id && (
                           <motion.div
                             layoutId="activeAdminNavMobile"
                             className="absolute inset-0 bg-emerald-600 dark:bg-emerald-500/90"
@@ -252,7 +252,7 @@ export default function AdminDashboard() {
                           />
                         )}
                         <item.icon className={cn(
-                          "w-5 h-5 relative z-10 stroke-[2px]", 
+                          "w-5 h-5 relative z-10 stroke-[2px]",
                           activeTab === item.id ? "text-white" : "text-slate-400"
                         )} />
                         <span className="relative z-10">{item.label}</span>

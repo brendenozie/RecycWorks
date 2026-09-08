@@ -27,7 +27,19 @@ export async function PATCH(
       lastUpdated: new Date(),
     };
 
-    // Keep the target coordinate pin stationary if already set
+    // Keep coordinates updated
+    if (typeof body.lat === "number" && !isNaN(body.lat)) {
+      updatePayload.lat = body.lat;
+    } else if (body.lat !== undefined && !isNaN(Number(body.lat))) {
+      updatePayload.lat = Number(body.lat);
+    }
+
+    if (typeof body.lng === "number" && !isNaN(body.lng)) {
+      updatePayload.lng = body.lng;
+    } else if (body.lng !== undefined && !isNaN(Number(body.lng))) {
+      updatePayload.lng = Number(body.lng);
+    }
+
     if (body.coords) {
       updatePayload.coords = body.coords;
     }

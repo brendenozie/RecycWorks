@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPinIcon, 
@@ -17,6 +18,17 @@ import {
   MapIcon
 } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
+import { getCityCoordinates } from "@/lib/locations";
+
+const HubLeafletMap = dynamic(() => import("@/components/maps/HubLeafletMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full min-h-[480px] lg:h-[540px] flex flex-col items-center justify-center bg-slate-950 rounded-2xl border border-slate-800 text-slate-400 gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+      <span className="text-xs font-mono tracking-wider text-slate-400">CONNECTING REGIONAL GIS ENGINE...</span>
+    </div>
+  ),
+});
 
 type HubLocation = {
   country: string;
@@ -31,13 +43,15 @@ type SupplierNode = {
   email: string;
 };
 
-type Hub = {
+export type Hub = {
   id: string;
   name: string;
   location: HubLocation;
   load: number;
   status: "Optimal" | "Maintenance" | "Near Capacity";
-  coords: { x: string; y: string };
+  coords?: { x: string; y: string };
+  lat?: number;
+  lng?: number;
   supplierIds?: string[];
 };
 
@@ -48,6 +62,7 @@ export function Hubs() {
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editingHub, setEditingHub] = useState<Hub | null>(null);
+  const [pickedCoords, setPickedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -106,6 +121,11 @@ export function Hubs() {
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
     
+    const rawLat = formData.get("lat");
+    const rawLng = formData.get("lng");
+    const lat = rawLat && !isNaN(Number(rawLat)) ? Number(rawLat) : (pickedCoords?.lat || undefined);
+    const lng = rawLng && !isNaN(Number(rawLng)) ? Number(rawLng) : (pickedCoords?.lng || undefined);
+
     const hubPayload = {
       name: formData.get("name"),
       status: formData.get("status"),
@@ -114,6 +134,8 @@ export function Hubs() {
       city: formData.get("city"),
       neighborhood: formData.get("neighborhood"),
       phase: formData.get("phase"),
+      lat,
+      lng,
       supplierIds: selectedSupplierIds,
       coords: editingHub?.coords || null
     };
@@ -162,12 +184,18 @@ export function Hubs() {
 
   const openPanel = (hub?: Hub) => {
     setEditingHub(hub || null);
+    if (hub && typeof hub.lat === "number" && typeof hub.lng === "number") {
+      setPickedCoords({ lat: hub.lat, lng: hub.lng });
+    } else {
+      setPickedCoords(null);
+    }
     setIsPanelOpen(true);
   };
 
   const closePanel = () => {
     setIsPanelOpen(false);
     setEditingHub(null);
+    setPickedCoords(null);
     setSelectedSupplierIds([]);
   };
 
@@ -237,11 +265,68 @@ export function Hubs() {
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 font-medium text-slate-800 dark:text-white" 
                   />
                   <div className="grid grid-cols-2 gap-3">
-                    <input name="country" placeholder="Country" defaultValue={editingHub?.location.country} required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white" />
-                    <input name="city" placeholder="City" defaultValue={editingHub?.location.city} required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white" />
-                    <input name="neighborhood" placeholder="Neighborhood" defaultValue={editingHub?.location.neighborhood} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white" />
+                    <input name="country" placeholder="Country" defaultValue={editingHub?.location.country || "Kenya"} required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white" />
+                    <input name="city" placeholder="City (e.g. Nairobi)" defaultValue={editingHub?.location.city} required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white" />
+                    <input name="neighborhood" placeholder="Neighborhood / Area" defaultValue={editingHub?.location.neighborhood} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white" />
                     <input name="phase" placeholder="Street / Phase" defaultValue={editingHub?.location.phase} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white" />
                   </div>
+                </div>
+
+                {/* GPS Coordinates Section */}
+                <div className="space-y-3 p-3.5 bg-slate-50/70 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <MapPinIcon className="w-3.5 h-3.5 text-emerald-500" /> GPS Map Coordinates
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cityInput = (document.querySelector('input[name="city"]') as HTMLInputElement)?.value;
+                        const hoodInput = (document.querySelector('input[name="neighborhood"]') as HTMLInputElement)?.value;
+                        const nameInput = (document.querySelector('input[name="name"]') as HTMLInputElement)?.value;
+                        const coords = getCityCoordinates(cityInput, hoodInput, nameInput);
+                        setPickedCoords(coords);
+                      }}
+                      className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                    >
+                      Auto-detect from City
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block mb-1">Latitude</span>
+                      <input 
+                        name="lat" 
+                        type="number" 
+                        step="any"
+                        placeholder="-1.286389" 
+                        value={pickedCoords ? pickedCoords.lat : (editingHub?.lat ?? "")} 
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setPickedCoords(prev => ({ lat: val, lng: prev?.lng ?? 36.8172 }));
+                        }}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white font-mono" 
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block mb-1">Longitude</span>
+                      <input 
+                        name="lng" 
+                        type="number" 
+                        step="any"
+                        placeholder="36.817223" 
+                        value={pickedCoords ? pickedCoords.lng : (editingHub?.lng ?? "")} 
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setPickedCoords(prev => ({ lat: prev?.lat ?? -1.2863, lng: val }));
+                        }}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white font-mono" 
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    💡 <span className="font-semibold">Map Interactive Picker:</span> Click directly anywhere on the map in the background to set the pin coordinates.
+                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -378,53 +463,20 @@ export function Hubs() {
             )}
           </div>
 
-          {/* MAP CANVAS GRID PLACEMENT */}
-          <div className="lg:col-span-6 relative aspect-[4/3] sm:aspect-[16/10] lg:aspect-auto lg:h-[520px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
-            <div 
-              className="absolute inset-0 opacity-[0.25] dark:opacity-[0.15] pointer-events-none" 
-              style={{ backgroundImage: 'radial-gradient(#64748b 1.5px, transparent 1.5px)', backgroundSize: '24px 24px' }} 
+          {/* FUNCTIONING GIS INTERACTIVE MAP */}
+          <div className="lg:col-span-6 h-[480px] lg:h-[540px]">
+            <HubLeafletMap
+              hubs={hubs}
+              selectedHub={selectedHub}
+              onSelectHub={(hub) => setSelectedHub(hub)}
+              onMapClick={(coords) => {
+                if (isPanelOpen) {
+                  setPickedCoords(coords);
+                }
+              }}
+              pickerMode={isPanelOpen}
+              pickedCoords={pickedCoords}
             />
-            
-            {hubs.map((hub) => {
-              const isSelected = selectedHub?.id === hub.id;
-              const statusBg = getStatusColor(hub.status);
-
-              return (
-                <button
-                  key={hub.id}
-                  onClick={() => setSelectedHub(hub)}
-                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2 group p-2 focus:outline-none"
-                  style={{ left: hub.coords?.x || "50%", top: hub.coords?.y || "50%" }}
-                >
-                  <div className="relative flex items-center justify-center">
-                    <span className={cn(
-                      "absolute inline-flex h-10 w-10 rounded-full opacity-30 animate-ping duration-1000",
-                      isSelected ? statusBg : "bg-transparent pointer-events-none"
-                    )} />
-                    
-                    <div className={cn(
-                      "h-6 w-6 rounded-full border-2 flex items-center justify-center shadow-md transition-all duration-300",
-                      isSelected 
-                        ? "bg-white dark:bg-slate-900 scale-120 border-slate-900 dark:border-white shadow-xl" 
-                        : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:border-slate-500"
-                    )}>
-                      <div className={cn("h-2 w-2 rounded-full", statusBg)} />
-                    </div>
-
-                    <div className={cn(
-                      "absolute top-8 bg-slate-900 text-white dark:bg-white dark:text-slate-950 text-[10px] font-bold px-2 py-0.5 rounded shadow-md whitespace-nowrap z-30 transition-opacity",
-                      isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                    )}>
-                      {hub.name} ({hub.load}%)
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-            
-            <div className="absolute bottom-4 left-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-500 dark:text-slate-400 shadow-sm">
-              Interactive Network Coordinates
-            </div>
           </div>
 
           {/* SIDE-BAR HUB READOUT DETAIL PANEL */}
@@ -499,8 +551,10 @@ export function Hubs() {
                         <p className={cn("font-bold text-[11px]", selectedHub.status === "Optimal" ? "text-emerald-500" : selectedHub.status === "Maintenance" ? "text-blue-500" : "text-amber-500")}>{selectedHub.status}</p>
                       </div>
                       <div className="p-2 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl">
-                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Ref ID</p>
-                        <p className="font-mono text-[11px] text-slate-500 truncate">{selectedHub.id}</p>
+                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">GPS Location</p>
+                        <p className="font-mono text-[10px] text-emerald-500 truncate">
+                          {selectedHub.lat !== undefined ? `${selectedHub.lat.toFixed(3)}, ${selectedHub.lng?.toFixed(3)}` : "Default Center"}
+                        </p>
                       </div>
                     </div>
                   </div>

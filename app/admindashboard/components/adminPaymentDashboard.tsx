@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { 
+import {
   CurrencyDollarIcon,
   MagnifyingGlassIcon,
   BanknotesIcon,
@@ -136,47 +136,47 @@ export default function AdminPaymentDashboard() {
     <div className="space-y-6">
       {/* Top Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md">
-          <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
-            <ArchiveBoxIcon className="w-4 h-4 text-emerald-400" /> Pending Supplier Payables
+        <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md shadow-sm dark:shadow-none">
+          <span className="text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+            <ArchiveBoxIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Pending Supplier Payables
           </span>
-          <div className="text-2xl font-black text-emerald-400">
+          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
             KES {totalPendingSupplierAmount.toLocaleString()}
           </div>
-          <p className="text-xs text-slate-400">{pendingLoads.length} consignments awaiting payout</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{pendingLoads.length} consignments awaiting payout</p>
         </div>
 
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md">
-          <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
-            <UserGroupIcon className="w-4 h-4 text-blue-400" /> Field Officer Stipends
+        <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md shadow-sm dark:shadow-none">
+          <span className="text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+            <UserGroupIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Field Officer Stipends
           </span>
-          <div className="text-2xl font-black text-blue-400">
+          <div className="text-2xl font-black text-blue-600 dark:text-blue-400">
             KES {totalOfficerStipendAmount.toLocaleString()}
           </div>
-          <p className="text-xs text-slate-400">{officerWork.length} active field officers</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{officerWork.length} active field officers</p>
         </div>
 
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md">
-          <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
-            <TruckIcon className="w-4 h-4 text-purple-400" /> Driver Trip Allowances
+        <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-1 backdrop-blur-md shadow-sm dark:shadow-none">
+          <span className="text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+            <TruckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" /> Driver Trip Allowances
           </span>
-          <div className="text-2xl font-black text-purple-400">
+          <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
             KES {totalDriverAllowanceAmount.toLocaleString()}
           </div>
-          <p className="text-xs text-slate-400">{driverWork.length} transport drivers</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{driverWork.length} transport drivers</p>
         </div>
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex justify-between items-center flex-wrap gap-3 pb-2 border-b border-slate-800">
+      <div className="flex justify-between items-center flex-wrap gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
         <div className="flex gap-2">
           <button
             onClick={() => setActiveSubTab("suppliers")}
             className={cn(
               "px-4 py-2 rounded-xl text-xs font-bold transition-all",
               activeSubTab === "suppliers"
-                ? "bg-emerald-500 text-slate-950 font-black shadow-md shadow-emerald-500/20"
-                : "bg-slate-800/40 text-slate-400 hover:text-white"
+                ? "bg-emerald-500 text-white dark:text-slate-950 font-black shadow-md shadow-emerald-500/20"
+                : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             )}
           >
             Supplier Payables ({pendingLoads.length})
@@ -187,7 +187,7 @@ export default function AdminPaymentDashboard() {
               "px-4 py-2 rounded-xl text-xs font-bold transition-all",
               activeSubTab === "officers"
                 ? "bg-blue-600 text-white font-black shadow-md shadow-blue-600/20"
-                : "bg-slate-800/40 text-slate-400 hover:text-white"
+                : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             )}
           >
             Field Officer Stipends ({officerWork.length})
@@ -198,7 +198,7 @@ export default function AdminPaymentDashboard() {
               "px-4 py-2 rounded-xl text-xs font-bold transition-all",
               activeSubTab === "drivers"
                 ? "bg-purple-600 text-white font-black shadow-md shadow-purple-600/20"
-                : "bg-slate-800/40 text-slate-400 hover:text-white"
+                : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             )}
           >
             Driver Allowances ({driverWork.length})
@@ -208,8 +208,8 @@ export default function AdminPaymentDashboard() {
             className={cn(
               "px-4 py-2 rounded-xl text-xs font-bold transition-all",
               activeSubTab === "history"
-                ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
-                : "bg-slate-800/40 text-slate-400 hover:text-white"
+                ? "bg-amber-500 text-white dark:text-slate-950 font-black shadow-md shadow-amber-500/20"
+                : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             )}
           >
             Completed Dispatches ({recentPayouts.length})
@@ -218,7 +218,7 @@ export default function AdminPaymentDashboard() {
 
         <button
           onClick={fetchPayoutData}
-          className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white text-xs flex items-center gap-1.5 transition-colors"
+          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white text-xs flex items-center gap-1.5 transition-colors"
         >
           <ArrowPathIcon className={cn("w-4 h-4", loading && "animate-spin")} />
           Sync Ledger
@@ -227,19 +227,19 @@ export default function AdminPaymentDashboard() {
 
       {/* SUB-TAB 1: SUPPLIER PAYABLES */}
       {activeSubTab === "suppliers" && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-xl">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
               Consignments Awaiting Supplier Payment
             </h3>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               Auto-calculated using Benchmark Rate Engine
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="p-3.5">Load No.</th>
                   <th className="p-3.5">Supplier</th>
@@ -251,7 +251,7 @@ export default function AdminPaymentDashboard() {
                   <th className="p-3.5 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300 font-medium">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                 {pendingLoads.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-slate-500">
@@ -262,11 +262,11 @@ export default function AdminPaymentDashboard() {
                   pendingLoads.map((load) => {
                     const gross = load.grossValueKes || load.netValueKes || 0;
                     return (
-                      <tr key={load._id} className="hover:bg-slate-800/20 transition-colors">
-                        <td className="p-3.5 font-mono text-emerald-400 font-bold">
+                      <tr key={load._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
+                        <td className="p-3.5 font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                           {load.loadNumber || load._id.slice(-6)}
                         </td>
-                        <td className="p-3.5 font-bold text-white">
+                        <td className="p-3.5 font-bold text-slate-900 dark:text-white">
                           {load.supplier || "Supplier"}
                           {load.hubName && (
                             <span className="block text-[10px] text-slate-500 font-normal">
@@ -280,24 +280,24 @@ export default function AdminPaymentDashboard() {
                             {load.grade}
                           </span>
                         </td>
-                        <td className="p-3.5 font-bold text-white">
+                        <td className="p-3.5 font-bold text-slate-900 dark:text-white">
                           {load.weight || `${load.quantity} KG`}
                         </td>
-                        <td className="p-3.5 text-slate-400">
+                        <td className="p-3.5 text-slate-500 dark:text-slate-400">
                           KES {load.unitPricePerKg || 35}
                         </td>
-                        <td className="p-3.5 font-black text-emerald-400 text-sm">
+                        <td className="p-3.5 font-black text-emerald-600 dark:text-emerald-400 text-sm">
                           KES {gross.toLocaleString()}
                         </td>
                         <td className="p-3.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
                             {load.status}
                           </span>
                         </td>
                         <td className="p-3.5 text-right">
                           <button
                             onClick={() => openPaymentModal(load, "supplier")}
-                            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-xs tracking-wider transition-colors"
+                            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-400 text-white dark:text-slate-950 font-black rounded-lg text-xs tracking-wider transition-colors"
                           >
                             Pay M-Pesa
                           </button>
@@ -314,19 +314,19 @@ export default function AdminPaymentDashboard() {
 
       {/* SUB-TAB 2: FIELD OFFICER WORK & STIPENDS */}
       {activeSubTab === "officers" && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-xl">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
               Field Officer Work & Performance Stipends
             </h3>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               Formula: 500 KES / Supplier + 350 KES / Captured Consignment
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="p-3.5">Field Officer</th>
                   <th className="p-3.5">Hub Node</th>
@@ -337,7 +337,7 @@ export default function AdminPaymentDashboard() {
                   <th className="p-3.5 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300 font-medium">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                 {officerWork.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-slate-500">
@@ -346,22 +346,22 @@ export default function AdminPaymentDashboard() {
                   </tr>
                 ) : (
                   officerWork.map((officer) => (
-                    <tr key={officer.id} className="hover:bg-slate-800/20 transition-colors">
+                    <tr key={officer.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                       <td className="p-3.5">
-                        <span className="font-bold text-white block">{officer.name}</span>
+                        <span className="font-bold text-slate-900 dark:text-white block">{officer.name}</span>
                         <span className="text-[10px] text-slate-500 font-mono">{officer.email}</span>
                       </td>
-                      <td className="p-3.5 text-slate-400">{officer.hubName}</td>
-                      <td className="p-3.5 font-bold text-emerald-400">{officer.suppliersOnboarded}</td>
-                      <td className="p-3.5 font-bold text-white">{officer.loadsCaptured}</td>
-                      <td className="p-3.5 text-slate-300">{officer.totalTonnage} Tons</td>
-                      <td className="p-3.5 font-black text-blue-400 text-sm">
+                      <td className="p-3.5 text-slate-500 dark:text-slate-400">{officer.hubName}</td>
+                      <td className="p-3.5 font-bold text-emerald-600 dark:text-emerald-400">{officer.suppliersOnboarded}</td>
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-white">{officer.loadsCaptured}</td>
+                      <td className="p-3.5 text-slate-600 dark:text-slate-300">{officer.totalTonnage} Tons</td>
+                      <td className="p-3.5 font-black text-blue-600 dark:text-blue-400 text-sm">
                         KES {officer.calculatedStipendKes.toLocaleString()}
                       </td>
                       <td className="p-3.5 text-right">
                         <button
                           onClick={() => openPaymentModal(officer, "officer")}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-lg text-xs tracking-wider transition-colors"
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-500 text-white font-black rounded-lg text-xs tracking-wider transition-colors"
                         >
                           Disburse Stipend
                         </button>
@@ -377,19 +377,19 @@ export default function AdminPaymentDashboard() {
 
       {/* SUB-TAB 3: DRIVER WORK & TRIP ALLOWANCES */}
       {activeSubTab === "drivers" && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-xl">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
               Driver Completed Trips & Transit Allowances
             </h3>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               Formula: 800 KES / Completed Bulk Collection Trip
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="p-3.5">Driver</th>
                   <th className="p-3.5">Assigned Vehicle</th>
@@ -399,7 +399,7 @@ export default function AdminPaymentDashboard() {
                   <th className="p-3.5 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300 font-medium">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                 {driverWork.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-slate-500">
@@ -408,21 +408,21 @@ export default function AdminPaymentDashboard() {
                   </tr>
                 ) : (
                   driverWork.map((driver) => (
-                    <tr key={driver.id} className="hover:bg-slate-800/20 transition-colors">
+                    <tr key={driver.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                       <td className="p-3.5">
-                        <span className="font-bold text-white block">{driver.name}</span>
+                        <span className="font-bold text-slate-900 dark:text-white block">{driver.name}</span>
                         <span className="text-[10px] text-slate-500 font-mono">{driver.phone}</span>
                       </td>
-                      <td className="p-3.5 font-bold text-purple-400">{driver.vehicle}</td>
-                      <td className="p-3.5 font-bold text-white">{driver.tripsCompleted} trips</td>
-                      <td className="p-3.5 text-slate-300">{driver.totalDeliveredTonnage} Tons</td>
-                      <td className="p-3.5 font-black text-purple-400 text-sm">
+                      <td className="p-3.5 font-bold text-purple-600 dark:text-purple-400">{driver.vehicle}</td>
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-white">{driver.tripsCompleted} trips</td>
+                      <td className="p-3.5 text-slate-600 dark:text-slate-300">{driver.totalDeliveredTonnage} Tons</td>
+                      <td className="p-3.5 font-black text-purple-600 dark:text-purple-400 text-sm">
                         KES {driver.calculatedAllowanceKes.toLocaleString()}
                       </td>
                       <td className="p-3.5 text-right">
                         <button
                           onClick={() => openPaymentModal(driver, "driver")}
-                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-lg text-xs tracking-wider transition-colors"
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 dark:hover:bg-purple-500 text-white font-black rounded-lg text-xs tracking-wider transition-colors"
                         >
                           Disburse Allowance
                         </button>
@@ -438,17 +438,17 @@ export default function AdminPaymentDashboard() {
 
       {/* SUB-TAB 4: RECENT DISBURSEMENTS AUDIT */}
       {activeSubTab === "history" && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-xl">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
               Completed Payment Transaction Records
             </h3>
-            <span className="text-xs text-slate-400">Auditable M-Pesa & Bank Records</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Auditable M-Pesa & Bank Records</span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="p-3.5">Date</th>
                   <th className="p-3.5">Recipient</th>
@@ -458,7 +458,7 @@ export default function AdminPaymentDashboard() {
                   <th className="p-3.5">Approved By</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300 font-medium">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                 {recentPayouts.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-slate-500">
@@ -467,25 +467,25 @@ export default function AdminPaymentDashboard() {
                   </tr>
                 ) : (
                   recentPayouts.map((tx, idx) => (
-                    <tr key={idx} className="hover:bg-slate-800/20 transition-colors">
-                      <td className="p-3.5 text-slate-400">
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
+                      <td className="p-3.5 text-slate-500 dark:text-slate-400">
                         {new Date(tx.date).toLocaleDateString()}
                       </td>
-                      <td className="p-3.5 font-bold text-white">
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-white">
                         {tx.recipientName || "Supplier / Staff"}
                       </td>
                       <td className="p-3.5">
-                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-bold text-[10px]">
+                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 rounded font-bold text-[10px]">
                           {tx.paymentMethod || "M-PESA"}
                         </span>
                       </td>
-                      <td className="p-3.5 font-mono text-amber-400 font-bold">
+                      <td className="p-3.5 font-mono text-amber-600 dark:text-amber-400 font-bold">
                         {tx.paymentReference}
                       </td>
-                      <td className="p-3.5 font-black text-white text-sm">
+                      <td className="p-3.5 font-black text-slate-900 dark:text-white text-sm">
                         KES {tx.amount?.toLocaleString()}
                       </td>
-                      <td className="p-3.5 text-slate-400 text-[11px]">
+                      <td className="p-3.5 text-slate-500 dark:text-slate-400 text-[11px]">
                         {tx.paidBy || "Finance Officer"}
                       </td>
                     </tr>
@@ -499,128 +499,91 @@ export default function AdminPaymentDashboard() {
 
       {/* DISBURSEMENT EXECUTION MODAL */}
       {selectedItemForPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-black uppercase text-white flex items-center gap-2">
-                <BanknotesIcon className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-base font-black uppercase text-slate-900 dark:text-white flex items-center gap-2">
+                <BanknotesIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 Record Payment Disbursement
               </h3>
               <button
                 onClick={() => setSelectedItemForPayment(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700 space-y-2 text-xs">
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-400">Recipient:</span>
-                <span className="font-bold text-white">
+                <span className="text-slate-500 dark:text-slate-400">Recipient:</span>
+                <span className="font-bold text-slate-900 dark:text-white">
                   {selectedItemForPayment.supplier || selectedItemForPayment.name}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Category:</span>
-                <span className="font-bold text-emerald-400 uppercase">
-                  {selectedItemForPayment.paymentType} Disbursement
+                <span className="text-slate-500 dark:text-slate-400">Category:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                  {selectedItemForPayment.paymentType}
                 </span>
               </div>
-              {selectedItemForPayment.loadNumber && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Consignment:</span>
-                  <span className="font-mono text-white font-bold">
-                    {selectedItemForPayment.loadNumber}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between items-center pt-2 border-t border-slate-700">
-                <span className="text-slate-400 font-bold">Payable Amount:</span>
-                <span className="text-xl font-black text-emerald-400">
+              <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                <span className="text-slate-500 dark:text-slate-400">Total Net Amount:</span>
+                <span className="text-lg font-black text-slate-900 dark:text-white">
                   KES {paymentAmount.toLocaleString()}
                 </span>
               </div>
             </div>
 
-            <form onSubmit={handleExecutePayment} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+            <form onSubmit={handleExecutePayment} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Payment Method
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {["M-PESA", "BANK TRANSFER", "CASH"].map((method) => (
-                    <button
-                      key={method}
-                      type="button"
-                      onClick={() => setPaymentMethod(method)}
-                      className={cn(
-                        "py-2 rounded-xl border text-center font-black transition-all text-[10px]",
-                        paymentMethod === method
-                          ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm"
-                          : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600"
-                      )}
-                    >
-                      {method}
-                    </button>
-                  ))}
-                </div>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white font-medium text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="M-PESA">M-PESA B2C / PayBill</option>
+                  <option value="BANK_TRANSFER">Bank Transfer (RTGS / EFT)</option>
+                  <option value="CASH">Hard Cash Disbursement</option>
+                </select>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  {paymentMethod} Reference / Transaction Code *
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Transaction Code / Reference
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. QDX871BZA or FT260904..."
+                  placeholder="e.g. SGT4X92LKQ"
                   value={paymentRef}
                   onChange={(e) => setPaymentRef(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono font-bold placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-sm tracking-wider"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white font-mono font-bold placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm tracking-wider uppercase"
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Amount to Pay (KES)
-                </label>
-                <input
-                  type="number"
-                  required
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Payment Notes (Optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Cleared via Safaricom Daraja B2C"
-                  value={paymentNotes}
-                  onChange={(e) => setPaymentNotes(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
+              <div className="pt-2 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setSelectedItemForPayment(null)}
-                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold"
+                  className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isProcessingPayment}
-                  className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                  disabled={isProcessingPayment || !paymentRef}
+                  className="flex-[2] py-2.5 rounded-xl font-black text-xs bg-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-400 text-white dark:text-slate-950 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {isProcessingPayment ? "Recording..." : "Confirm & Record"}
+                  {isProcessingPayment ? (
+                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircleIcon className="w-4 h-4" />
+                  )}
+                  {isProcessingPayment ? "Recording..." : "Finalize & Mark Paid"}
                 </button>
               </div>
             </form>

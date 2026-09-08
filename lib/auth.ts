@@ -47,6 +47,7 @@ export interface User {
   status: "active" | "suspended" | "pending_verification";
   onboardingStep: number; // 1 to 4
 
+  loginCode?: string;
   emailVerified?: boolean;
   provider: "credentials" | "google";
   googleId?: string;
@@ -57,15 +58,55 @@ export interface User {
 
 /* --- UTILS --- */
 
+export async function generateLoginCode(db?: any): Promise<string> {
+  const chars = "0123456789";
+  let attempts = 0;
+  while (attempts < 10) {
+    let codeNum = "";
+    for (let i = 0; i < 6; i++) {
+      codeNum += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const candidate = `RW-${codeNum}`;
+    if (db) {
+      const existing = await db.collection("users").findOne({ loginCode: candidate });
+      if (!existing) return candidate;
+    } else {
+      return candidate;
+    }
+    attempts++;
+  }
+  return `RW-${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
 }
 
 export async function verifyPassword(
-  password: string,
-  hashedPassword: string,
+  password?: string | null,
+  hashedPassword?: string | null,
 ): Promise<boolean> {
-  return bcrypt.compare(password, hashedPassword);
+  if (
+    !password ||
+    !hashedPassword ||
+    typeof password !== "string" ||
+    typeof hashedPassword !== "string"
+  ) {
+    return false;
+  }
+  try {
+    if (
+      hashedPassword.startsWith("$2a$") ||
+      hashedPassword.startsWith("$2b$") ||
+      hashedPassword.startsWith("$2y$")
+    ) {
+      return await bcrypt.compare(password, hashedPassword);
+    }
+    // Fallback: in case legacy or manually-provisioned records stored plaintext
+    return password === hashedPassword;
+  } catch (error) {
+    return false;
+  }
 }
 
 export function generateToken(
@@ -105,9 +146,12 @@ export async function createUser(
     hashedPassword = await hashPassword(userData.password);
   }
 
+  const loginCode = userData.loginCode || (await generateLoginCode(db));
+
   const user: Omit<User, "_id"> = {
     ...userData,
     password: hashedPassword,
+    loginCode,
     role: userData.role || "supplier",
     isAdmin: userData.role === "admin",
     status: userData.role === "driver" ? "pending_verification" : "active",
@@ -129,14 +173,25 @@ export async function createUser(
   return { ...user, _id: result.insertedId.toString() };
 }
 
-export async function findUser(email: string): Promise<User | null> {
+export async function findUser(identifier: string): Promise<User | null> {
   const db = await getDatabase();
-  const user = await db.collection("users").findOne({ email });
+  const trimmed = identifier.trim();
+  const safeRegex = new RegExp(`^${trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+
+  // Allow lookup by email, loginCode, or supplierCode
+  const user = await db.collection("users").findOne({
+    $or: [
+      { email: safeRegex },
+      { loginCode: safeRegex },
+      { supplierCode: safeRegex },
+    ],
+  });
   if (!user) return null;
 
   return {
     _id: user._id.toString(),
     email: user.email,
+    loginCode: user.loginCode,
     password: user.password,
     firstName: user.firstName,
     lastName: user.lastName,

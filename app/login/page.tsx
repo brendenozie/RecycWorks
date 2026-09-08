@@ -11,20 +11,28 @@ import {
   EnvelopeIcon, 
   LockClosedIcon,
   ArrowPathIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  KeyIcon,
+  FingerPrintIcon
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-context";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const searchParams = useSearchParams();
+  const initialCode = searchParams.get("code") || "";
+  const [loginMode, setLoginMode] = useState<"code" | "email">(initialCode ? "code" : "email");
+  const [formData, setFormData] = useState({ 
+    email: "", 
+    loginCode: initialCode, 
+    password: "" 
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [isEmailVerificationError, setIsEmailVerificationError] = useState(false);
   
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user, loading: authLoading, login } = useAuth();
 
   const redirectTo = searchParams.get("redirect") || "/admindashboard";
@@ -59,10 +67,14 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      const payload = loginMode === "code"
+        ? { loginCode: formData.loginCode.trim().toUpperCase(), password: formData.password }
+        : { email: formData.email.trim(), password: formData.password };
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -114,7 +126,7 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 md:p-10 shadow-2xl"
         >
-          <div className="text-center mb-10">
+          <div className="text-center mb-8">
             <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 mb-4 border border-emerald-500/20">
               <CpuChipIcon className="w-8 h-8" />
             </div>
@@ -122,21 +134,79 @@ export default function LoginPage() {
             <p className="text-purple-200/50 text-sm">Access the RecycOp Intelligence Portal</p>
           </div>
 
+          {/* Mode Switcher Tabs */}
+          <div className="grid grid-cols-2 gap-2 p-1.5 bg-white/5 border border-white/10 rounded-2xl mb-6">
+            <button
+              type="button"
+              onClick={() => { setLoginMode("code"); setError(""); }}
+              className={cn(
+                "flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer",
+                loginMode === "code"
+                  ? "bg-emerald-500 text-slate-950 shadow-md font-extrabold"
+                  : "text-purple-200/50 hover:text-white hover:bg-white/5"
+              )}
+            >
+              <KeyIcon className="w-3.5 h-3.5" />
+              Login Code
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode("email"); setError(""); }}
+              className={cn(
+                "flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer",
+                loginMode === "email"
+                  ? "bg-emerald-500 text-slate-950 shadow-md font-extrabold"
+                  : "text-purple-200/50 hover:text-white hover:bg-white/5"
+              )}
+            >
+              <EnvelopeIcon className="w-3.5 h-3.5" />
+              Email
+            </button>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-[0.2em] font-black text-purple-200/40 ml-1">Email Address</label>
-              <div className="relative">
-                <EnvelopeIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-200/30" />
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all"
-                  placeholder="name@recycworks.africa"
-                />
+            {loginMode === "code" ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] uppercase tracking-[0.2em] font-black text-purple-200/40 ml-1">
+                    Workforce Login Code
+                  </label>
+                  <span className="text-[10px] text-emerald-400/80 font-mono font-bold uppercase tracking-wider">
+                    e.g. RW-104829
+                  </span>
+                </div>
+                <div className="relative">
+                  <KeyIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-200/30" />
+                  <input
+                    type="text"
+                    required
+                    autoFocus={loginMode === "code"}
+                    value={formData.loginCode}
+                    onChange={(e) => setFormData({...formData, loginCode: e.target.value.toUpperCase()})}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-white/15 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all font-mono font-black tracking-widest uppercase text-sm"
+                    placeholder="RW-XXXXXX"
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-[0.2em] font-black text-purple-200/40 ml-1">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <EnvelopeIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-200/30" />
+                  <input
+                    type="email"
+                    required
+                    autoFocus={loginMode === "email"}
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all text-sm"
+                    placeholder="name@recycworks.africa"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-[10px] uppercase tracking-[0.2em] font-black text-purple-200/40 ml-1">Secure Password</label>

@@ -88,10 +88,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message:
-          "Registration successful. Please verify your email to access the dashboard.",
+          "Registration successful. Please verify your email or sign in with your login code.",
+        loginCode: user.loginCode,
         user: {
           id: user._id,
           email: user.email,
+          loginCode: user.loginCode,
           role: user.role,
           status: user.status,
           onboardingStep: user.onboardingStep,

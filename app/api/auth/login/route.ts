@@ -4,21 +4,36 @@ import { getDatabase } from "@/lib/mongodb";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const body = await request.json();
+    const identifier = (body.loginCode || body.email || body.identifier || "").trim();
+    const password = body.password;
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: "Email/Login Code and password are required" },
         { status: 400 },
       );
     }
 
     const db = await getDatabase();
+    const safeRegex = new RegExp(`^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
 
     // 1. Check the 'admins' collection (System-wide Super Admins)
-    const admin = await db.collection("admins").findOne({ email });
+    const admin = await db.collection("admins").findOne({
+      $or: [
+        { email: safeRegex },
+        { loginCode: safeRegex },
+      ],
+    });
 
     if (admin) {
+      if (!admin.password) {
+        return NextResponse.json(
+          { error: "Invalid credentials" },
+          { status: 401 },
+        );
+      }
+
       const isValidPassword = await verifyPassword(password, admin.password);
       if (!isValidPassword) {
         return NextResponse.json(
@@ -49,8 +64,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. Check the 'users' collection (Operations, Suppliers, Drivers)
-    const user = await findUser(email);
+    // 2. Check the 'users' collection (Operations, Suppliers, Drivers, Hub Managers, etc.)
+    const user = await findUser(identifier);
     if (!user) {
       return NextResponse.json(
         { error: "Invalid credentials" },
@@ -58,7 +73,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const isValidPassword = await verifyPassword(password, user.password!);
+    if (!user.password) {
+      if (user.provider === "google") {
+        return NextResponse.json(
+          {
+            error:
+              "This account was registered using Google Sign-In. Please sign in with Google.",
+          },
+          { status: 400 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Invalid credentials" },
+        { status: 401 },
+      );
+    }
+
+    const isValidPassword = await verifyPassword(password, user.password);
     if (!isValidPassword) {
       return NextResponse.json(
         { error: "Invalid credentials" },
@@ -67,7 +98,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Status Verification (Important for the RecycWorks onboarding flow)
-    if (user.status === "suspended") {
+    const normalizedStatus = (user.status || "active").toLowerCase();
+    if (normalizedStatus === "suspended") {
       return NextResponse.json(
         {
           error:
@@ -77,7 +109,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (user.status === "pending_verification") {
+    if (normalizedStatus === "pending_verification" || normalizedStatus === "reviewing") {
       return NextResponse.json(
         {
           error:
